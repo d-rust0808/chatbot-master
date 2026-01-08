@@ -11,7 +11,7 @@
 import { prisma } from '../../infrastructure/database';
 import { logger } from '../../infrastructure/logger';
 import type { ChatMessage } from '../../types/ai';
-import { truncateMessages } from '../../utils/token-manager';
+import { truncateMessages } from '../../utils/ai/token-manager';
 import { conversationMemoryService } from './conversation-memory.service';
 
 /**

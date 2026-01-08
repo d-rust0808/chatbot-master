@@ -16,9 +16,13 @@ import { tenantMiddleware } from './middleware/tenant';
 import { rateLimitMiddleware } from './middleware/rate-limit';
 import { performHealthCheck } from './infrastructure/health-check';
 import { webSocketServer } from './infrastructure/websocket';
+import { bootstrapAdmin } from './infrastructure/bootstrap-admin';
 import './workers/message.worker'; // Start message worker
 import { scheduleCleanupJob } from './workers/session-cleanup.worker';
 import './workers/session-cleanup.worker'; // Start session cleanup worker
+import { startPaymentExpiryWorker } from './workers/payment/payment-expiry.worker';
+import fastifyStatic from '@fastify/static';
+import * as path from 'path';
 
 // Initialize Fastify instance
 const app = Fastify({
@@ -30,11 +34,47 @@ const app = Fastify({
 // Register error handler
 app.setErrorHandler(errorHandler);
 
+// Add default metadata to all JSON responses
+app.addHook('preSerialization', (_request, _reply, payload, done) => {
+  if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+    const obj = payload as Record<string, unknown>;
+    if (!('api_version' in obj)) {
+      obj.api_version = 'v1';
+    }
+    if (!('provider' in obj)) {
+      obj.provider = 'cdudu';
+    }
+    return done(null, obj);
+  }
+  return done(null, payload);
+});
+
 // Register middleware
 app.register(tenantMiddleware);
 
-// Register rate limiting (after tenant middleware to have tenant context)
+// Serve static files (uploads)
+app.register(fastifyStatic, {
+  root: path.join(process.cwd(), 'public'),
+  prefix: '/', // Serve files at /uploads/...
+});
+
+// Simple CORS cho dev: cho phép tất cả origin
+// WARNING: Không dùng cấu hình này cho production
 app.addHook('onRequest', async (request, reply) => {
+  reply.header('Access-Control-Allow-Origin', '*');
+  reply.header('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+  reply.header(
+    'Access-Control-Allow-Headers',
+    'Content-Type, Authorization, X-Tenant-Id, X-Tenant-Slug, x-tenant-slug, X-Requested-With'
+  );
+
+  if (request.method === 'OPTIONS') {
+    // Preflight request → trả về luôn
+    reply.status(204).send();
+    return;
+  }
+
+  // Rate limiting (sau khi set CORS headers)
   await rateLimitMiddleware(request, reply);
 });
 
@@ -56,8 +96,14 @@ const start = async () => {
     const port = config.port;
     const host = config.host;
     
+    // Bootstrap admin user (if configured)
+    await bootstrapAdmin();
+    
     // Schedule session cleanup job
     await scheduleCleanupJob();
+    
+    // Start payment expiry worker
+    startPaymentExpiryWorker();
     
     // Start Fastify server
     await app.listen({ port, host });

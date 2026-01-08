@@ -140,7 +140,7 @@ Be specific and extract all relevant information from the user's prompt.`,
               properties: {
                 platform: {
                   type: 'string',
-                  enum: ['whatsapp', 'facebook', 'instagram', 'tiktok', 'zalo', 'shopee', 'lazada'],
+                  enum: ['whatsapp', 'facebook', 'instagram', 'tiktok', 'zalo', 'shopee'],
                   description: 'Platform name',
                 },
                 credentials: {
@@ -202,7 +202,7 @@ Be specific and extract all relevant information from the user's prompt.`,
   private validateIntent(intent: OnboardingIntent): void {
     // Validate platforms
     if (intent.platforms && intent.platforms.length > 0) {
-      const validPlatforms = ['whatsapp', 'facebook', 'instagram', 'tiktok', 'zalo', 'shopee', 'lazada'];
+      const validPlatforms = ['whatsapp', 'facebook', 'instagram', 'tiktok', 'zalo', 'shopee'];
       for (const platform of intent.platforms) {
         if (!validPlatforms.includes(platform.platform)) {
           throw new Error(`Invalid platform: ${platform.platform}`);

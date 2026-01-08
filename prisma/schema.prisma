@@ -12,15 +12,17 @@ datasource db {
 
 // User model
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  password  String
-  name      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id         String   @id @default(cuid())
+  email      String   @unique
+  password   String
+  name       String?
+  systemRole String   @default("admin") // sp-admin, admin (customer không phải user, chỉ là data trong conversations)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   // Relations
-  tenants TenantUser[]
+  tenants  TenantUser[]
+  payments Payment[]
 
   @@map("users")
 }
@@ -30,14 +32,32 @@ model Tenant {
   id        String   @id @default(cuid())
   name      String
   slug      String   @unique
+  metadata  Json? // Config settings từ sp-admin (chatbot settings, etc.)
+  isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   // Relations
-  users          TenantUser[]
-  chatbots       Chatbot[]
-  conversations  Conversation[]
-  knowledgeBases KnowledgeBase[]
+  users              TenantUser[]
+  chatbots           Chatbot[]
+  conversations      Conversation[]
+  knowledgeBases     KnowledgeBase[]
+  subscriptions      Subscription[]
+  planLimits         TenantPlanLimit[]
+  creditWallet       CreditWallet?
+  vndWallet          VNDWallet?
+  categories         Category[]
+  products           Product[]
+  orders             Order[]
+  usageRecords       UsageRecord[]
+  creditTransactions CreditTransaction[]
+  vndTransactions    VNDTransaction[]
+  paymentRecords     PaymentRecord[]
+
+  services  TenantService[]
+  workflows Workflow[]
+  payments  Payment[]
+  serviceSubscriptions ServiceSubscription[]
 
   @@map("tenants")
 }
@@ -53,6 +73,8 @@ model TenantUser {
   // Relations
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  servicePermissions TenantUserServicePermission[]
 
   @@unique([userId, tenantId])
   @@map("tenant_users")
@@ -77,6 +99,8 @@ model Chatbot {
   platforms     PlatformConnection[]
   conversations Conversation[]
   knowledgeBase KnowledgeBase?
+
+  workflows Workflow[]
 
   @@map("chatbots")
 }
@@ -108,8 +132,8 @@ model Conversation {
   platform  String
   chatId    String // Platform-specific chat ID
   status    String   @default("active") // active, closed, archived
-  summary   String?  // Conversation summary for long conversations
-  metadata  Json?    // Additional metadata (entities, etc.)
+  summary   String? // Conversation summary for long conversations
+  metadata  Json? // Additional metadata (entities, etc.)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -195,4 +219,393 @@ model KnowledgeChunk {
   document KnowledgeDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
 
   @@map("knowledge_chunks")
+}
+
+/// Billing & Plan templates (global, không gắn tenant)
+model PlanTemplate {
+  id                String   @id @default(cuid())
+  name              String
+  description       String?
+  monthlyPriceCents Int
+  currency          String   @default("USD")
+  isActive          Boolean  @default(true)
+  // JSON cấu hình limit: tokens, messages, chatbots, platformConnections...
+  limits            Json
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  subscriptions Subscription[]
+
+  @@map("plan_templates")
+}
+
+/// Subscription của tenant cho 1 plan
+model Subscription {
+  id                 String   @id @default(cuid())
+  tenantId           String
+  planTemplateId     String
+  status             String   @default("active") // active, canceled, expired
+  startedAt          DateTime @default(now())
+  currentPeriodStart DateTime
+  currentPeriodEnd   DateTime
+  cancelAtPeriodEnd  Boolean  @default(false)
+  metadata           Json?
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  planTemplate PlanTemplate  @relation(fields: [planTemplateId], references: [id], onDelete: Restrict)
+  usageRecords UsageRecord[]
+
+  @@index([tenantId, status, currentPeriodEnd])
+  @@map("subscriptions")
+}
+
+/// Limit cụ thể (materialized) cho tenant, derive từ Subscription/PlanTemplate
+model TenantPlanLimit {
+  id            String    @id @default(cuid())
+  tenantId      String
+  // JSON: { maxChatbots, maxUsers, maxMonthlyTokens, maxMonthlyMessages, ... }
+  limits        Json
+  effectiveFrom DateTime  @default(now())
+  effectiveTo   DateTime?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, effectiveFrom])
+  @@map("tenant_plan_limits")
+}
+
+/// Usage record thô (AI tokens, messages, platform messages)
+model UsageRecord {
+  id             String   @id @default(cuid())
+  tenantId       String
+  subscriptionId String?
+  // type: ai_tokens, ai_requests, platform_messages, etc.
+  type           String
+  quantity       Int
+  unit           String // tokens, messages, requests
+  source         String? // chatbotId / platform / worker
+  metadata       Json?
+  createdAt      DateTime @default(now())
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  subscription Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, type, createdAt])
+  @@map("usage_records")
+}
+
+/// Ví VNĐ của tenant (tiền thật)
+model VNDWallet {
+  id        String   @id @default(cuid())
+  tenantId  String   @unique
+  balance   Int      @default(0) // đơn vị: VNĐ
+  currency  String   @default("VND")
+  updatedAt DateTime @updatedAt
+
+  tenant       Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  transactions VNDTransaction[]
+
+  @@map("vnd_wallets")
+}
+
+/// Giao dịch VNĐ (nạp tiền, mua credit, etc.)
+model VNDTransaction {
+  id          String   @id @default(cuid())
+  walletId    String
+  tenantId    String
+  amount      Int // +n: nạp, -n: chi
+  reason      String
+  referenceId String? // liên kết payment/credit_purchase
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  wallet VNDWallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  tenant Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt])
+  @@map("vnd_transactions")
+}
+
+/// Ví credit của tenant (để dùng AI)
+model CreditWallet {
+  id        String   @id @default(cuid())
+  tenantId  String   @unique
+  balance   Int      @default(0) // đơn vị: credit
+  currency  String   @default("CREDIT")
+  updatedAt DateTime @updatedAt
+
+  tenant       Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  transactions CreditTransaction[]
+
+  @@map("credit_wallets")
+}
+
+/// Giao dịch credit (mua / trừ khi dùng AI)
+model CreditTransaction {
+  id          String   @id @default(cuid())
+  walletId    String
+  tenantId    String
+  amount      Int // +n: mua, -n: trừ khi dùng AI
+  reason      String
+  referenceId String? // liên kết vnd_transaction (khi mua) / conversation_id (khi dùng)
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  wallet CreditWallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  tenant Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt])
+  @@map("credit_transactions")
+}
+
+/// Gói credit (optional - mua với giá ưu đãi)
+model CreditPackage {
+  id           String   @id @default(cuid())
+  name         String
+  description  String?
+  creditAmount Int // Số credit trong gói
+  price        Int // Giá VNĐ
+  bonusCredit  Int      @default(0) // Credit bonus (khuyến mãi)
+  isActive     Boolean  @default(true)
+  sortOrder    Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([isActive, sortOrder])
+  @@map("credit_packages")
+}
+
+/// Danh mục sản phẩm (per-tenant)
+model Category {
+  id        String   @id @default(cuid())
+  tenantId  String
+  name      String
+  slug      String
+  parentId  String?
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant   Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  parent   Category?  @relation("CategoryToCategory", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryToCategory")
+  products Product[]
+
+  @@unique([tenantId, slug])
+  @@index([tenantId, isActive])
+  @@map("categories")
+}
+
+/// Sản phẩm (per-tenant)
+model Product {
+  id          String   @id @default(cuid())
+  tenantId    String
+  categoryId  String?
+  name        String
+  slug        String
+  description String?
+  priceCents  Int
+  currency    String   @default("USD")
+  stock       Int      @default(0)
+  isActive    Boolean  @default(true)
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant     Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  category   Category?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  orderItems OrderItem[]
+
+  @@unique([tenantId, slug])
+  @@index([tenantId, isActive])
+  @@map("products")
+}
+
+/// Đơn hàng (per-tenant)
+model Order {
+  id              String   @id @default(cuid())
+  tenantId        String
+  externalId      String? // ID từ platform (Shopee/Lazada/etc.)
+  status          String   @default("pending") // pending, paid, cancelled, fulfilled
+  totalCents      Int
+  currency        String   @default("USD")
+  customerName    String?
+  customerPhone   String?
+  customerAddress String?
+  metadata        Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tenant   Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  items    OrderItem[]
+  payments PaymentRecord[]
+
+  @@index([tenantId, status, createdAt])
+  @@map("orders")
+}
+
+/// Sản phẩm trong đơn hàng
+model OrderItem {
+  id             String  @id @default(cuid())
+  orderId        String
+  productId      String?
+  name           String
+  quantity       Int
+  unitPriceCents Int
+  currency       String  @default("USD")
+
+  order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@map("order_items")
+}
+
+/// Payment record liên quan đơn hàng
+model PaymentRecord {
+  id          String   @id @default(cuid())
+  orderId     String
+  tenantId    String
+  provider    String // stripe, vnpay, momo, mock...
+  amountCents Int
+  currency    String   @default("USD")
+  status      String   @default("pending") // pending, paid, failed, refunded
+  externalRef String? // provider payment id
+  rawResponse Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  order  Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status, createdAt])
+  @@map("payment_records")
+}
+
+/// Dịch vụ được bật cho tenant (messenger, tiktok, whatsapp, ...)
+model TenantService {
+  id        String   @id @default(cuid())
+  tenantId  String
+  service   String // e.g. whatsapp, facebook_messenger, tiktok, zalo, ...
+  isEnabled Boolean  @default(false)
+  config    Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, service])
+  @@index([tenantId, isEnabled])
+  @@map("tenant_services")
+}
+
+/// Quyền sử dụng dịch vụ cho từng user trong tenant
+model TenantUserServicePermission {
+  id           String   @id @default(cuid())
+  tenantUserId String
+  service      String
+  canManage    Boolean  @default(false)
+  canUse       Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  tenantUser TenantUser @relation(fields: [tenantUserId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantUserId, service])
+  @@index([tenantUserId])
+  @@map("tenant_user_service_permissions")
+}
+
+/// Workflow cấu hình cho từng chatbot / cửa hàng
+model Workflow {
+  id          String   @id @default(cuid())
+  tenantId    String
+  chatbotId   String
+  name        String
+  description String?
+  storeId     String?
+  config      Json? // JSON định nghĩa flow: steps, conditions, actions
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  chatbot Chatbot @relation(fields: [chatbotId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, chatbotId, isActive])
+  @@map("workflows")
+}
+
+/// Payment nạp tiền qua Sepay (Admin nạp tiền vào tài khoản)
+model Payment {
+  id          String    @id @default(cuid())
+  tenantId    String
+  userId      String // Admin user tạo payment
+  code        String    @unique // Mã giao dịch 8 ký tự (A-Z0-9)
+  amount      Int // Số tiền VNĐ (tối thiểu 10,000)
+  status      String    @default("pending") // pending, completed, expired, cancelled
+  qrCode      String? // QR Code URL từ Sepay
+  qrCodeData  String? // QR Code data (base64 hoặc URL)
+  expiresAt   DateTime // Thời gian hết hạn (5 phút sau khi tạo)
+  completedAt DateTime?
+  cancelledAt DateTime?
+  webhookData Json? // Raw webhook data từ Sepay
+  metadata    Json? // Thông tin bổ sung
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, status, createdAt])
+  @@index([userId, status])
+  @@index([code])
+  @@index([status, expiresAt])
+  @@map("payments")
+}
+
+/// Gói dịch vụ (WhatsApp, Messenger, TikTok, etc.)
+model ServicePackage {
+  id          String   @id @default(cuid())
+  name        String   // e.g. "Gói WhatsApp"
+  description String?
+  service     String   // whatsapp, messenger, tiktok, zalo, etc.
+  pricePerMonth Int    // Giá VNĐ/tháng (base price)
+  minDuration Int      @default(1) // Số tháng tối thiểu
+  imageUrl    String?  // URL ảnh gói dịch vụ
+  features    Json?    // Tính năng của gói
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  subscriptions ServiceSubscription[]
+
+  @@index([service, isActive])
+  @@index([isActive, sortOrder])
+  @@map("service_packages")
+}
+
+/// Đăng ký gói dịch vụ của tenant
+model ServiceSubscription {
+  id            String   @id @default(cuid())
+  tenantId      String
+  packageId     String
+  duration      Int      // Số tháng đã chọn (1, 2, 3, 4, 5)
+  price         Int      // Giá đã thanh toán (pricePerMonth * duration)
+  status        String   @default("active") // active, expired, cancelled
+  startDate     DateTime @default(now())
+  endDate       DateTime
+  autoRenew     Boolean  @default(false)
+  cancelledAt   DateTime?
+  metadata      Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  tenant  Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  package ServicePackage @relation(fields: [packageId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, status, endDate])
+  @@index([status, endDate])
+  @@map("service_subscriptions")
 }

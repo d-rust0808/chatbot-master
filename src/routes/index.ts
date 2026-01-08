@@ -8,14 +8,20 @@
  */
 
 import { FastifyInstance } from 'fastify';
-import { authRoutes } from './auth.routes';
-import { platformRoutes } from './platform.routes';
-import { aiRoutes } from './ai.routes';
-import { chatbotRoutes } from './chatbot.routes';
-import { analyticsRoutes } from './analytics.routes';
-import { conversationRoutes } from './conversation.routes';
-import { onboardingRoutes } from './onboarding.routes';
+import { authRoutes } from './auth/auth.routes';
+import { platformRoutes } from './platform/platform.routes';
+import { aiRoutes } from './ai/ai.routes';
+import { chatbotRoutes } from './chatbot/chatbot.routes';
+import { analyticsRoutes } from './analytics/analytics.routes';
+import { conversationRoutes } from './conversation/conversation.routes';
+import { onboardingRoutes } from './onboarding/onboarding.routes';
 import { adminRoutes } from './admin.routes';
+import { catalogRoutes } from './catalog/catalog.routes';
+import { billingRoutes } from './billing/billing.routes';
+import { paymentRoutes } from './payment/payment.routes';
+import { tenantServiceRoutes } from './tenant-service/tenant-service.routes';
+import { creditRoutes } from './wallet/credit.routes';
+import { servicePackageRoutes } from './service-package/service-package.routes';
 
 /**
  * Setup all routes
@@ -44,6 +50,24 @@ export async function setupRoutes(fastify: FastifyInstance) {
 
   // Register admin routes
   await fastify.register(adminRoutes, { prefix: '/admin' });
+
+  // Register catalog routes (tenant-level)
+  await fastify.register(catalogRoutes);
+
+  // Register billing routes (tenant-level)
+  await fastify.register(billingRoutes);
+
+  // Register tenant service & workflow routes (tenant-level)
+  await fastify.register(tenantServiceRoutes);
+
+  // Register payment routes (admin only)
+  await fastify.register(paymentRoutes, { prefix: '/admin/payments' });
+
+  // Register credit routes
+  await fastify.register(creditRoutes, { prefix: '/credits' });
+
+  // Register service package routes
+  await fastify.register(servicePackageRoutes, { prefix: '/service-packages' });
 
   // Health check
   fastify.get('/health', async () => {

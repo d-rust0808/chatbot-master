@@ -11,6 +11,7 @@
 import { prisma } from '../../infrastructure/database';
 import { logger } from '../../infrastructure/logger';
 import { aiService } from './ai.service';
+import { cacheService } from '../cache.service';
 import type { ChatMessage } from '../../types/ai';
 
 /**

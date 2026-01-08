@@ -48,15 +48,15 @@ const TEST_MODELS = [
   // OpenAI
   'gpt-4o-mini',
   'gpt-4o',
-  'gpt-4.1-mini-2025-04-14', // Có thể dùng alias: 'gpt-4.1-mini' hoặc '4.1-mini'
   'gpt-4.1-2025-04-14', // Có thể dùng alias: 'gpt-4.1' hoặc '4.1'
   'gpt-4',
   
   // Gemini
   'gemini-2.5-flash',
-  'gemini-2.5-pro',
   'gemini-3-flash-preview',
-  // Đã xóa: gemini-3-pro-preview (không dùng được)
+  // Đã xóa: 
+  // - gemini-2.5-pro (rate limit issues)
+  // - gemini-3-pro-preview (không dùng được)
   
   // DeepSeek
   'deepseek-chat',

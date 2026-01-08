@@ -151,7 +151,7 @@ export class ConfigGeneratorService {
       logger.warn('No platforms specified in configuration');
     }
 
-    const validPlatforms = ['whatsapp', 'facebook', 'instagram', 'tiktok', 'zalo', 'shopee', 'lazada'];
+    const validPlatforms = ['whatsapp', 'facebook', 'instagram', 'tiktok', 'zalo', 'shopee'];
     for (const platform of config.platforms) {
       if (!validPlatforms.includes(platform.platform)) {
         throw new Error(`Invalid platform: ${platform.platform}`);

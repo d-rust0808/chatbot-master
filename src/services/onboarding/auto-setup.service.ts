@@ -11,7 +11,7 @@
 import { logger } from '../../infrastructure/logger';
 import { prisma } from '../../infrastructure/database';
 import { GeneratedConfig } from './config-generator.service';
-import { platformManager } from '../platform-manager.service';
+import { platformManager } from '../platform/platform-manager.service';
 import type { PlatformConnectionConfig, PlatformType } from '../../types/platform';
 
 /**

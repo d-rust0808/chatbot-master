@@ -17,7 +17,7 @@ import type {
 } from '../types/platform';
 import { logger } from '../infrastructure/logger';
 import { browserManager } from '../infrastructure/browser-manager';
-import { randomDelay } from '../utils/human-behavior';
+import { randomDelay } from '../utils/ai/human-behavior';
 import { Page, Browser } from 'puppeteer';
 
 /**

@@ -45,6 +45,17 @@ export interface AuthResponse {
     id: string;
     email: string;
     name: string | null;
+    role?: string;
+  };
+  tenants?: {
+    id: string;
+    name: string;
+    slug: string;
+    role: string;
+  }[];
+  wallet?: {
+    vndBalance: number;
+    creditBalance: number;
   };
 }
 

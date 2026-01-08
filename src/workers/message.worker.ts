@@ -10,7 +10,7 @@
 import { Worker, Job } from 'bullmq';
 import { config } from '../infrastructure/config';
 import { logger } from '../infrastructure/logger';
-import { platformManager } from '../services/platform-manager.service';
+import { platformManager } from '../services/platform/platform-manager.service';
 
 /**
  * Message job data

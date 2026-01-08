@@ -18,6 +18,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - chatbot-network
 
   # Redis (Cache & Queue)
   redis:
@@ -32,6 +34,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - chatbot-network
 
   # Qdrant Vector DB
   qdrant:
@@ -47,9 +51,48 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - chatbot-network
+
+  # Backend Application (Development)
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: chatbot-backend-dev
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      HOST: 0.0.0.0
+      DATABASE_URL: postgresql://chatbot_user:chatbot_password@postgres:5432/chatbot_db?sslmode=disable
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      QDRANT_URL: http://qdrant:6333
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - ./logs:/app/logs
+      - ./public/uploads:/app/public/uploads
+    networks:
+      - chatbot-network
+    command: npm run dev
 
 volumes:
   postgres_data:
   redis_data:
   qdrant_data:
+
+networks:
+  chatbot-network:
+    driver: bridge
 

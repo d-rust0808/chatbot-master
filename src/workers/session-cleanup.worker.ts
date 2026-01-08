@@ -73,12 +73,12 @@ export async function scheduleCleanupJob() {
 
     if (!existingJob) {
       // Schedule recurring job (every hour)
+      // WHY: Use cron pattern instead of 'every' for better flexibility
       await cleanupQueue.add(
         'cleanup-sessions',
         {},
         {
           repeat: {
-            every: 60 * 60 * 1000, // Every hour
             pattern: '0 * * * *', // Cron: every hour at minute 0
           },
           jobId: 'session-cleanup-recurring',

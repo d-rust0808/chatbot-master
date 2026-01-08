@@ -8,7 +8,7 @@
  */
 
 // Platform types
-export type PlatformType = 'whatsapp' | 'facebook' | 'instagram' | 'tiktok' | 'zalo' | 'shopee' | 'lazada';
+export type PlatformType = 'whatsapp' | 'facebook' | 'instagram' | 'tiktok' | 'zalo' | 'shopee';
 
 // Connection status
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error' | 'authenticating';

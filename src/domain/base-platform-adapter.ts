@@ -18,8 +18,8 @@ import type {
   PlatformConnectionConfig,
 } from '../types/platform';
 import { logger } from '../infrastructure/logger';
-import { retryWithBackoff, type RetryOptions } from '../utils/retry';
-import { circuitBreakerManager } from '../utils/circuit-breaker';
+import { retryWithBackoff, type RetryOptions } from '../utils/resilience/retry';
+import { circuitBreakerManager } from '../utils/resilience/circuit-breaker';
 
 /**
  * Base class cho Platform Adapters

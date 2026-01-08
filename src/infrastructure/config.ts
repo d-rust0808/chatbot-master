@@ -58,6 +58,26 @@ const envSchema = z.object({
   
   // Logging
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug']).default('info'),
+  
+  // Admin (Auto-create on startup)
+  ADMIN_EMAIL: z.string().email().optional(),
+  ADMIN_PASSWORD: z.string().min(8).optional(),
+  ADMIN_NAME: z.string().optional(),
+  ADMIN_TENANT_NAME: z.string().optional(),
+
+  // Legacy / alternative env keys for sp-admin (for compatibility)
+  USER_SPADMIN: z.string().optional(),
+  MAIL_SPADMIN: z.string().email().optional(),
+  PASSWORD_SPADMIN: z.string().optional(),
+  PASSWORD_SPxADMIN: z.string().optional(),
+  SPADMIN_TENANT_NAME: z.string().optional(),
+
+  // Sepay Payment Gateway
+  SEPAY_ACCOUNT: z.string().optional(), // Số tài khoản ngân hàng
+  SEPAY_BANK: z.string().optional(), // Tên ngân hàng
+  SEPAY_TEMPLATE: z.string().default('compact'), // Template QR Code (compact, standard)
+  SEPAY_WEBHOOK_SECRET: z.string().optional(), // Secret để verify webhook
+  SEPAY_API_URL: z.string().url().optional(), // Sepay API URL (nếu có)
 });
 
 /**
@@ -118,6 +138,22 @@ const parseEnv = () => {
 
 const env = parseEnv();
 
+// Normalize admin credentials: prefer ADMIN_* but accept legacy SPADMIN_* keys
+const adminEmail =
+  env.ADMIN_EMAIL ||
+  env.MAIL_SPADMIN ||
+  env.USER_SPADMIN ||
+  undefined;
+
+const adminPassword =
+  env.ADMIN_PASSWORD ||
+  env.PASSWORD_SPADMIN ||
+  env.PASSWORD_SPxADMIN ||
+  undefined;
+
+const adminName = env.ADMIN_NAME || env.USER_SPADMIN || undefined;
+const adminTenantName = env.ADMIN_TENANT_NAME || env.SPADMIN_TENANT_NAME || undefined;
+
 // Export typed config object
 export const config = {
   env: env.NODE_ENV,
@@ -171,6 +207,21 @@ export const config = {
   
   logging: {
     level: env.LOG_LEVEL,
+  },
+  
+  admin: {
+    email: adminEmail,
+    password: adminPassword,
+    name: adminName,
+    tenantName: adminTenantName,
+  },
+
+  sepay: {
+    account: env.SEPAY_ACCOUNT || '',
+    bank: env.SEPAY_BANK || '',
+    template: env.SEPAY_TEMPLATE || 'compact',
+    webhookSecret: env.SEPAY_WEBHOOK_SECRET || '',
+    apiUrl: env.SEPAY_API_URL || '',
   },
 } as const;
 

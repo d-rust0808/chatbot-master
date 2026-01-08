@@ -10,7 +10,7 @@
 import { FastifyRequest, FastifyReply } from 'fastify';
 import { redis } from '../infrastructure/redis';
 import { logger } from '../infrastructure/logger';
-import { requireTenant } from './tenant';
+import type { TenantRequest } from '../types/tenant';
 
 /**
  * Rate limit configuration
@@ -30,7 +30,7 @@ const DEFAULT_RATE_LIMITS: Record<string, RateLimitConfig> = {
   // Auth endpoints - stricter limits
   '/api/v1/auth/login': {
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 5, // 5 attempts per 15 minutes
+    max: 20, // 20 attempts per 15 minutes (increased for development/testing)
     message: 'Too many login attempts. Please try again later.',
   },
   '/api/v1/auth/register': {
@@ -91,19 +91,47 @@ export async function rateLimitMiddleware(
       return;
     }
 
+    // Public routes that don't need tenant context
+    const publicRoutes = [
+      '/api/v1/auth/register',
+      '/api/v1/auth/login',
+      '/api/v1/auth/refresh',
+    ];
+    
+    // SP-admin routes that don't have tenant context
+    const adminRoutes = [
+      '/api/v1/admin',
+    ];
+    
+    const isPublicRoute = publicRoutes.some(route => request.url.startsWith(route));
+    const isAdminRoute = adminRoutes.some(route => request.url.startsWith(route));
+    
     const config = getRateLimitConfig(request.url);
-    const tenant = requireTenant(request);
-
-    // Build rate limit key: tenantId:endpoint:window
-    const window = Math.floor(Date.now() / config.windowMs);
-    const key = `rate_limit:${tenant.id}:${request.url}:${window}`;
+    
+    // Check if tenant context exists (for tenant-scoped routes)
+    const tenantRequest = request as TenantRequest;
+    const hasTenantContext = !!tenantRequest.tenant;
+    
+    // For public routes or routes without tenant context (SP-admin), use IP-based rate limiting
+    let rateLimitKey: string;
+    if (isPublicRoute || isAdminRoute || !hasTenantContext) {
+      // Use IP address for public/admin routes or routes without tenant context
+      const clientIp = request.ip || request.headers['x-forwarded-for'] || 'unknown';
+      const window = Math.floor(Date.now() / config.windowMs);
+      rateLimitKey = `rate_limit:${isAdminRoute ? 'admin' : 'public'}:${clientIp}:${request.url}:${window}`;
+    } else {
+      // Use tenant-based rate limiting for tenant-scoped routes
+      const tenant = tenantRequest.tenant!;
+      const window = Math.floor(Date.now() / config.windowMs);
+      rateLimitKey = `rate_limit:${tenant.id}:${request.url}:${window}`;
+    }
 
     // Get current count
-    const count = await redis.incr(key);
+    const count = await redis.incr(rateLimitKey);
 
     // Set expiry if this is the first request in this window
     if (count === 1) {
-      await redis.expire(key, Math.ceil(config.windowMs / 1000));
+      await redis.expire(rateLimitKey, Math.ceil(config.windowMs / 1000));
     }
 
     // Check if limit exceeded
@@ -111,10 +139,11 @@ export async function rateLimitMiddleware(
       const retryAfter = Math.ceil((config.windowMs - (Date.now() % config.windowMs)) / 1000);
 
       logger.warn('Rate limit exceeded', {
-        tenantId: tenant.id,
         endpoint: request.url,
         count,
         max: config.max,
+        isPublicRoute,
+        key: rateLimitKey,
       });
 
       return reply.status(429).send({
@@ -127,6 +156,7 @@ export async function rateLimitMiddleware(
     }
 
     // Add rate limit headers
+    const window = Math.floor(Date.now() / config.windowMs);
     reply.header('X-RateLimit-Limit', config.max.toString());
     reply.header('X-RateLimit-Remaining', Math.max(0, config.max - count).toString());
     reply.header('X-RateLimit-Reset', new Date((window + 1) * config.windowMs).toISOString());

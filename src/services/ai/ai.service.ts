@@ -12,12 +12,18 @@ import { prisma } from '../../infrastructure/database';
 import { logger } from '../../infrastructure/logger';
 import { AIProviderFactory } from './ai-provider.factory';
 import { ConversationContextBuilder } from './conversation-context-builder';
-import { calculateCost } from '../../utils/token-manager';
+import { calculateCost, countTokens } from '../../utils/ai/token-manager';
 import type { IAIProvider } from '../../domain/ai-provider.interface';
 import { promptBuilder } from './prompt-builder.service';
 import { responseProcessor } from './response-processor.service';
 import { intentDetector } from './intent-detector.service';
 import { conversationMemoryService } from './conversation-memory.service';
+import { creditService } from '../wallet/credit.service';
+import {
+  calculateCreditsFromTokenUsage,
+  calculateCreditsFromTokens,
+} from '../../utils/wallet/credit-pricing';
+import { InsufficientCreditsError } from '../../errors/wallet/credit.errors';
 
 /**
  * AI Service
@@ -84,11 +90,40 @@ export class AIService {
         context
       );
 
-      // 7. Get AI provider
+      // 7. Estimate credits required and check balance
+      const estimatedCredits = calculateCreditsFromTokens(
+        countTokens(messages, chatbot.aiModel),
+        chatbot.aiModel
+      );
+      
+      const tenant = await prisma.conversation.findUnique({
+        where: { id: conversationId },
+        select: { tenantId: true },
+      });
+
+      if (!tenant) {
+        throw new Error(`Conversation ${conversationId} not found`);
+      }
+
+      const hasEnoughCredits = await creditService.canDeduct(
+        tenant.tenantId,
+        estimatedCredits
+      );
+
+      if (!hasEnoughCredits) {
+        const balance = await creditService.getBalance(tenant.tenantId);
+        throw new InsufficientCreditsError(
+          tenant.tenantId,
+          estimatedCredits,
+          balance
+        );
+      }
+
+      // 8. Get AI provider
       const providerType = AIProviderFactory.getProviderFromModel(chatbot.aiModel);
       const provider = AIProviderFactory.create(providerType);
 
-      // 8. Generate response với fallback
+      // 9. Generate response với fallback
       const response = await this.generateWithFallback(
         provider,
         messages,
@@ -101,7 +136,7 @@ export class AIService {
         chatbotId
       );
 
-      // 9. Post-processing: Process response
+      // 10. Post-processing: Process response
       const processed = await responseProcessor.processResponse(response.content, {
         formatMarkdown: true,
         validateResponse: true,
@@ -109,7 +144,30 @@ export class AIService {
         maxLength: chatbot.maxTokens * 4, // Approximate char limit
       });
 
-      // 10. Save response to database với token tracking
+      // 11. Calculate actual credits used and deduct
+      let creditsDeducted = 0;
+      if (response.tokens) {
+        creditsDeducted = calculateCreditsFromTokenUsage(
+          response.tokens,
+          response.model
+        );
+
+        // Deduct credits after successful response
+        await creditService.deduct(
+          tenant.tenantId,
+          creditsDeducted,
+          `AI Response - Chatbot: ${chatbotId}, Conversation: ${conversationId}`,
+          conversationId,
+          {
+            chatbotId,
+            model: response.model,
+            tokens: response.tokens,
+            conversationId,
+          }
+        );
+      }
+
+      // 12. Save response to database với token tracking
       await this.saveMessage(
         conversationId,
         processed.content,
@@ -121,6 +179,7 @@ export class AIService {
           cost: response.tokens
             ? calculateCost(response.tokens.total, response.model)
             : undefined,
+          creditsDeducted: creditsDeducted > 0 ? creditsDeducted : undefined,
         }
       );
 
@@ -201,6 +260,7 @@ export class AIService {
       tokens?: { prompt: number; completion: number; total: number };
       model?: string;
       cost?: number;
+      creditsDeducted?: number;
     }
   ): Promise<void> {
     try {

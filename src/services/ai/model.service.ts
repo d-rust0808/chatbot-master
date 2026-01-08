@@ -62,16 +62,7 @@ export const RECOMMENDED_MODELS: RecommendedModel[] = [
     category: 'balanced',
     recommended: true,
   },
-  {
-    name: 'gpt-4.1-mini-2025-04-14',
-    displayName: 'GPT-4.1 Mini',
-    description: 'Phiên bản mini mới nhất của OpenAI',
-    provider: 'openai',
-    category: 'budget',
-    recommended: false,
-    // Alias để dễ nhớ
-    aliases: ['gpt-4.1-mini', '4.1-mini'],
-  },
+  // Đã xóa: gpt-4.1-mini-2025-04-14 (không có sẵn trên v98store)
   {
     name: 'gpt-4.1-2025-04-14',
     displayName: 'GPT-4.1',
@@ -99,14 +90,7 @@ export const RECOMMENDED_MODELS: RecommendedModel[] = [
     category: 'budget',
     recommended: true,
   },
-  {
-    name: 'gemini-2.5-pro',
-    displayName: 'Gemini 2.5 Pro',
-    description: 'Chất lượng cao, phù hợp chatbot phức tạp',
-    provider: 'gemini',
-    category: 'balanced',
-    recommended: false,
-  },
+  // Đã xóa: gemini-2.5-pro (rate limit issues)
   {
     name: 'gemini-3-flash-preview',
     displayName: 'Gemini 3 Flash Preview',

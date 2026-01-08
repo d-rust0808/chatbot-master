@@ -9,7 +9,7 @@
 
 import { prisma } from '../infrastructure/database';
 import { logger } from '../infrastructure/logger';
-import { platformManager } from './platform-manager.service';
+import { platformManager } from './platform/platform-manager.service';
 
 /**
  * Session expiration time (7 days)
