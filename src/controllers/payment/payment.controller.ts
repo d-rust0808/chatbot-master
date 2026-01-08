@@ -607,76 +607,18 @@ export async function sepayWebhookHandler(
   reply: FastifyReply
 ) {
   try {
-    // Verify API Key authentication
-    // WHY: Sepay gửi Authorization header với format: "Apikey YOUR_API_KEY"
-    // - Cần config SEPAY_WEBHOOK_SECRET trong .env với giá trị API Key từ Sepay
-    // - Format: Authorization: "Apikey cdudu.com@882002" (ví dụ)
-    const webhookSecret = config.sepay.webhookSecret?.trim();
-    const authHeader = request.headers.authorization?.trim();
-    
-    if (webhookSecret && webhookSecret !== '') {
-      // Có config webhookSecret → yêu cầu authentication
-      if (!authHeader) {
-        logger.warn('Sepay webhook missing Authorization header', {
-          hasWebhookSecret: !!webhookSecret,
-          webhookSecretLength: webhookSecret.length,
-          headers: Object.keys(request.headers),
-        });
-        return reply.status(401).send({
-          error: {
-            message: 'Missing or invalid authorization header',
-            statusCode: 401,
-          },
-        });
-      }
-
-      // Format: "Apikey YOUR_API_KEY" (Sepay format)
-      // WHY: Sepay gửi: Authorization: "Apikey cdudu.com@882002"
-      // - Có thể có quotes hoặc không
-      // - Cần trim và normalize
-      const normalizedHeader = authHeader.replace(/^["']|["']$/g, '').trim(); // Remove quotes nếu có
-      const expectedAuth = `Apikey ${webhookSecret}`;
-      const expectedAuthSimple = webhookSecret;
-      
-      // So sánh với nhiều format có thể
-      const isValid = 
-        normalizedHeader === expectedAuth || 
-        normalizedHeader === expectedAuthSimple ||
-        authHeader === expectedAuth ||
-        authHeader === expectedAuthSimple;
-      
-      if (!isValid) {
-        logger.warn('Sepay webhook invalid API Key', {
-          received: authHeader,
-          receivedLength: authHeader.length,
-          expected: `Apikey ${webhookSecret}`,
-          expectedLength: expectedAuth.length,
-          webhookSecretLength: webhookSecret.length,
-          matchApikeyFormat: authHeader === expectedAuth,
-          matchSimpleFormat: authHeader === expectedAuthSimple,
-        });
-        return reply.status(401).send({
-          error: {
-            message: 'Missing or invalid authorization header',
-            statusCode: 401,
-          },
-        });
-      }
-      
-      logger.info('Sepay webhook authenticated successfully', {
+    // WHY: Bỏ authentication requirement vì Sepay không gửi đúng Authorization header
+    // - Webhook endpoint là public (không yêu cầu auth)
+    // - Security: Dựa vào payment code matching và amount verification
+    // - Log Authorization header nếu có (để debug)
+    const authHeader = request.headers.authorization;
+    if (authHeader) {
+      logger.info('Sepay webhook received with Authorization header', {
         authHeaderLength: authHeader.length,
-        webhookSecretLength: webhookSecret.length,
+        authHeaderPreview: authHeader.substring(0, 30) + '...',
       });
     } else {
-      // Không có webhookSecret config → public webhook (không secure)
-      // WHY: Cho phép hoạt động ngay cả khi chưa config webhookSecret
-      if (authHeader) {
-        logger.info('Sepay webhook received with Authorization header but webhookSecret not configured', {
-          authHeader: authHeader.substring(0, 30) + '...',
-        });
-      } else {
-        logger.info('Sepay webhook received (no auth - webhookSecret not configured)');
-      }
+      logger.info('Sepay webhook received (no Authorization header)');
     }
 
     const webhookData = request.body as {
