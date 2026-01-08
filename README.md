@@ -106,16 +106,16 @@ npm run prisma:studio
 # Development mode với hot reload
 npm run dev
 
-# Server sẽ chạy tại http://localhost:3000
+# Server sẽ chạy tại http://localhost:30001
 ```
 
 #### 6. Test API
 ```bash
 # Health check
-curl http://localhost:3000/health
+curl http://localhost:30001/health
 
 # Register user
-curl -X POST http://localhost:3000/api/v1/auth/register \
+curl -X POST http://localhost:30001/api/v1/auth/register \
   -H "Content-Type: application/json" \
   -d '{
     "email": "test@example.com",
@@ -124,7 +124,7 @@ curl -X POST http://localhost:3000/api/v1/auth/register \
   }'
 
 # Login
-curl -X POST http://localhost:3000/api/v1/auth/login \
+curl -X POST http://localhost:30001/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{
     "email": "test@example.com",

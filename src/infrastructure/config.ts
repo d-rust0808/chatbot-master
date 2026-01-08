@@ -17,7 +17,7 @@ dotenv.config();
 const envSchema = z.object({
   // Server
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
-  PORT: z.string().transform(Number).default('3000'),
+  PORT: z.string().transform(Number).default('30001'),
   HOST: z.string().default('0.0.0.0'),
   
   // Database - Support cả DATABASE_URL hoặc DB_* variables

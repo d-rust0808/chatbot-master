@@ -7,11 +7,6 @@ yarn-error.log
 dist
 *.tsbuildinfo
 
-# Environment
-.env
-.env.local
-.env.*.local
-
 # IDE
 .vscode
 .idea

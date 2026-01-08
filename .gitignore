@@ -7,13 +7,6 @@ yarn.lock
 dist/
 build/
 
-# Environment variables
-.env
-.env.local
-.env.*.local
-.env.production
-.env.production.local
-
 # Logs
 logs/
 *.log
