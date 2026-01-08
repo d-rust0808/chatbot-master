@@ -16,7 +16,7 @@ import { vndWalletService } from '../wallet/vnd-wallet.service';
 
 // Constants
 const MIN_AMOUNT = 10000; // 10,000 VNĐ tối thiểu
-const PAYMENT_EXPIRY_MINUTES = 5; // 5 phút
+const PAYMENT_EXPIRY_MINUTES = 15; // 15 phút (user requirement)
 const CODE_LENGTH = 8; // Mã giao dịch 8 ký tự
 
 /**
@@ -84,13 +84,13 @@ export async function createPayment(
     throw new Error(`Số tiền tối thiểu là ${MIN_AMOUNT.toLocaleString('vi-VN')} VNĐ`);
   }
 
-  // Anti-spam: Check if user has active payment (pending or expired but not completed/cancelled)
-  // WHY: Chỉ cho phép tạo lệnh mới khi payment trước đó đã completed hoặc cancelled
-  // - Tránh spam tạo nhiều lệnh thanh toán
-  // - User phải hoàn thành hoặc hủy đơn trước đó mới tạo được đơn mới
-  // - Rule: Chỉ cho phép 1 payment pending/active tại 1 thời điểm
+  // Check existing payments logic:
+  // WHY: User requirement - Nếu có payment pending (chưa hết hạn) → trả về payment đó
+  // - Nếu có payment expired → tự động cancel và cho phép tạo mới
+  // - Nếu có payment pending đã hết hạn → tự động expire, rồi cancel, cho phép tạo mới
+  // - Nếu có payment pending chưa hết hạn → trả về payment đó (không tạo mới)
   
-  // Check 1: Tìm payment đang pending (chưa hết hạn)
+  // Check 1: Tìm payment đang pending (chưa hết hạn) - Trả về payment đó
   const activePending = await (prisma as any).payment.findFirst({
     where: {
       userId,
@@ -98,49 +98,72 @@ export async function createPayment(
       status: 'pending',
       expiresAt: { gt: new Date() }, // Chưa hết hạn
     },
-  });
-
-  if (activePending) {
-    throw new Error('Bạn đang có giao dịch đang chờ thanh toán. Vui lòng hoàn thành hoặc hủy giao dịch trước đó.');
-  }
-
-  // Check 2: Tìm payment gần nhất của user để kiểm tra trạng thái
-  // Rule: Chỉ cho phép tạo mới khi payment cuối cùng là completed hoặc cancelled
-  // - Nếu payment cuối cùng là pending (kể cả đã hết hạn) -> không cho tạo mới
-  // - Nếu payment cuối cùng là expired -> không cho tạo mới (phải hủy thủ công)
-  // - Nếu payment cuối cùng là completed/cancelled -> cho phép tạo mới
-  const lastPayment = await (prisma as any).payment.findFirst({
-    where: {
-      userId,
-      tenantId, // Security: Filter by tenant
-    },
     orderBy: { createdAt: 'desc' },
   });
 
-  if (lastPayment) {
-    // Chỉ cho phép tạo mới khi payment cuối cùng là completed hoặc cancelled
-    // Các status khác (pending, expired, processing, ...) đều không cho tạo mới
-    if (lastPayment.status !== 'completed' && lastPayment.status !== 'cancelled') {
-      // Nếu payment đã hết hạn nhưng status vẫn là pending, tự động expire
-      if (lastPayment.status === 'pending' && new Date(lastPayment.expiresAt) < new Date()) {
-        await (prisma as any).payment.update({
-          where: { id: lastPayment.id },
-          data: { status: 'expired' },
-        });
-        logger.info('Auto-expired payment during create check', { paymentId: lastPayment.id });
-        
-        // Sau khi expire, vẫn không cho tạo mới (phải hủy thủ công)
-        throw new Error(
-          'Bạn có giao dịch đã hết hạn. Vui lòng hủy giao dịch đó trước khi tạo lệnh nạp mới.'
-        );
-      }
-      
-      // Payment có status khác completed/cancelled -> không cho tạo mới
-      throw new Error(
-        `Bạn đang có giao dịch với trạng thái "${lastPayment.status}". ` +
-        `Vui lòng hoàn thành hoặc hủy giao dịch trước đó trước khi tạo lệnh nạp mới.`
-      );
-    }
+  if (activePending) {
+    // User requirement: Nếu có payment pending chưa hết hạn → trả về payment đó
+    logger.info('Returning existing pending payment', {
+      paymentId: activePending.id,
+      code: activePending.code,
+      userId,
+      tenantId,
+    });
+    
+    return {
+      id: activePending.id,
+      code: activePending.code,
+      amount: activePending.amount,
+      qrCode: activePending.qrCode || '',
+      qrCodeData: activePending.qrCodeData || '',
+      expiresAt: activePending.expiresAt,
+    };
+  }
+
+  // Check 2: Tìm và tự động cancel tất cả expired payments - Cho phép tạo mới
+  // WHY: User requirement - Tự động hủy expired payments khi tạo mới
+  // - Expire tất cả pending payments đã hết hạn
+  // - Cancel tất cả expired payments của user
+  const now = new Date();
+  
+  // Step 1: Expire tất cả pending payments đã hết hạn
+  const expiredPendingResult = await (prisma as any).payment.updateMany({
+    where: {
+      userId,
+      tenantId, // Security: Filter by tenant
+      status: 'pending',
+      expiresAt: { lt: now }, // Đã hết hạn
+    },
+    data: { status: 'expired' },
+  });
+  
+  if (expiredPendingResult.count > 0) {
+    logger.info('Auto-expired pending payments during create check', {
+      count: expiredPendingResult.count,
+      userId,
+      tenantId,
+    });
+  }
+  
+  // Step 2: Cancel tất cả expired payments của user
+  const cancelledExpiredResult = await (prisma as any).payment.updateMany({
+    where: {
+      userId,
+      tenantId, // Security: Filter by tenant
+      status: 'expired',
+    },
+    data: {
+      status: 'cancelled',
+      cancelledAt: now,
+    },
+  });
+  
+  if (cancelledExpiredResult.count > 0) {
+    logger.info('Auto-cancelled expired payments to allow new payment creation', {
+      count: cancelledExpiredResult.count,
+      userId,
+      tenantId,
+    });
   }
 
   // Generate unique code
