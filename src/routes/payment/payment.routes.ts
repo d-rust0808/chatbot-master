@@ -24,8 +24,13 @@ import { authenticate } from '../../middleware/auth';
 import { requireAdmin, requireSuperAdmin } from '../../middleware/role-check';
 
 export async function paymentRoutes(fastify: FastifyInstance) {
-  // Public webhook endpoint (no auth required)
-  fastify.post('/webhook/sepay', sepayWebhookHandler);
+  // WHY: Webhook endpoint phải được đăng ký trong route group riêng
+  // - Tránh bị ảnh hưởng bởi hooks (authenticate, requireAdmin)
+  // - Webhook là public endpoint, không cần authentication
+  fastify.register(async function (webhookFastify) {
+    // Public webhook endpoint (no auth required)
+    webhookFastify.post('/webhook/sepay', sepayWebhookHandler);
+  });
 
   // Admin endpoints (require authentication + admin role)
   fastify.addHook('preHandler', authenticate);
