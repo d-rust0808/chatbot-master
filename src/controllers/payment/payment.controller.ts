@@ -607,6 +607,36 @@ export async function sepayWebhookHandler(
   reply: FastifyReply
 ) {
   try {
+    // Verify API Key authentication (nếu có cấu hình)
+    // Sepay gửi API Key trong header: Authorization: "Apikey YOUR_API_KEY"
+    const webhookSecret = config.sepay.webhookSecret;
+    if (webhookSecret) {
+      const authHeader = request.headers.authorization;
+      if (!authHeader) {
+        logger.warn('Sepay webhook missing Authorization header');
+        return reply.status(401).send({
+          error: {
+            message: 'Unauthorized: Missing Authorization header',
+            statusCode: 401,
+          },
+        });
+      }
+
+      // Format: "Apikey YOUR_API_KEY"
+      const expectedAuth = `Apikey ${webhookSecret}`;
+      if (authHeader !== expectedAuth) {
+        logger.warn('Sepay webhook invalid API Key', {
+          received: authHeader.substring(0, 20) + '...', // Log một phần để debug
+        });
+        return reply.status(401).send({
+          error: {
+            message: 'Unauthorized: Invalid API Key',
+            statusCode: 401,
+          },
+        });
+      }
+    }
+
     const webhookData = request.body as {
       code?: string;
       content?: string;
