@@ -607,33 +607,75 @@ export async function sepayWebhookHandler(
   reply: FastifyReply
 ) {
   try {
-    // Verify API Key authentication (nếu có cấu hình)
-    // Sepay gửi API Key trong header: Authorization: "Apikey YOUR_API_KEY"
-    const webhookSecret = config.sepay.webhookSecret;
-    if (webhookSecret) {
-      const authHeader = request.headers.authorization;
+    // Verify API Key authentication
+    // WHY: Sepay gửi Authorization header với format: "Apikey YOUR_API_KEY"
+    // - Cần config SEPAY_WEBHOOK_SECRET trong .env với giá trị API Key từ Sepay
+    // - Format: Authorization: "Apikey cdudu.com@882002" (ví dụ)
+    const webhookSecret = config.sepay.webhookSecret?.trim();
+    const authHeader = request.headers.authorization?.trim();
+    
+    if (webhookSecret && webhookSecret !== '') {
+      // Có config webhookSecret → yêu cầu authentication
       if (!authHeader) {
-        logger.warn('Sepay webhook missing Authorization header');
+        logger.warn('Sepay webhook missing Authorization header', {
+          hasWebhookSecret: !!webhookSecret,
+          webhookSecretLength: webhookSecret.length,
+          headers: Object.keys(request.headers),
+        });
         return reply.status(401).send({
           error: {
-            message: 'Unauthorized: Missing Authorization header',
+            message: 'Missing or invalid authorization header',
             statusCode: 401,
           },
         });
       }
 
-      // Format: "Apikey YOUR_API_KEY"
+      // Format: "Apikey YOUR_API_KEY" (Sepay format)
+      // WHY: Sepay gửi: Authorization: "Apikey cdudu.com@882002"
+      // - Có thể có quotes hoặc không
+      // - Cần trim và normalize
+      const normalizedHeader = authHeader.replace(/^["']|["']$/g, '').trim(); // Remove quotes nếu có
       const expectedAuth = `Apikey ${webhookSecret}`;
-      if (authHeader !== expectedAuth) {
+      const expectedAuthSimple = webhookSecret;
+      
+      // So sánh với nhiều format có thể
+      const isValid = 
+        normalizedHeader === expectedAuth || 
+        normalizedHeader === expectedAuthSimple ||
+        authHeader === expectedAuth ||
+        authHeader === expectedAuthSimple;
+      
+      if (!isValid) {
         logger.warn('Sepay webhook invalid API Key', {
-          received: authHeader.substring(0, 20) + '...', // Log một phần để debug
+          received: authHeader,
+          receivedLength: authHeader.length,
+          expected: `Apikey ${webhookSecret}`,
+          expectedLength: expectedAuth.length,
+          webhookSecretLength: webhookSecret.length,
+          matchApikeyFormat: authHeader === expectedAuth,
+          matchSimpleFormat: authHeader === expectedAuthSimple,
         });
         return reply.status(401).send({
           error: {
-            message: 'Unauthorized: Invalid API Key',
+            message: 'Missing or invalid authorization header',
             statusCode: 401,
           },
         });
+      }
+      
+      logger.info('Sepay webhook authenticated successfully', {
+        authHeaderLength: authHeader.length,
+        webhookSecretLength: webhookSecret.length,
+      });
+    } else {
+      // Không có webhookSecret config → public webhook (không secure)
+      // WHY: Cho phép hoạt động ngay cả khi chưa config webhookSecret
+      if (authHeader) {
+        logger.info('Sepay webhook received with Authorization header but webhookSecret not configured', {
+          authHeader: authHeader.substring(0, 30) + '...',
+        });
+      } else {
+        logger.info('Sepay webhook received (no auth - webhookSecret not configured)');
       }
     }
 
@@ -641,32 +683,55 @@ export async function sepayWebhookHandler(
       code?: string;
       content?: string;
       amount?: number;
+      transferAmount?: number; // Sepay format
       [key: string]: any;
     };
 
     logger.info('Sepay webhook received', { webhookData });
 
+    // Normalize amount: Sepay có thể gửi amount hoặc transferAmount
+    const webhookAmount = webhookData.transferAmount || webhookData.amount;
+
     // Strategy 1: Find by code in webhook.code field
     let payment = null;
     if (webhookData.code) {
       payment = await findPaymentByCode(webhookData.code);
+      logger.info('Strategy 1: Found payment by code', { code: webhookData.code, paymentId: payment?.id });
     }
 
     // Strategy 2: Extract code from content field
+    // WHY: Sepay gửi code trong content field, ví dụ: "UWPAR266 Ma giao dich..."
     if (!payment && webhookData.content) {
       const extractedCode = extractCodeFromContent(webhookData.content);
       if (extractedCode) {
+        logger.info('Strategy 2: Extracted code from content', { content: webhookData.content, extractedCode });
         payment = await findPaymentByCode(extractedCode);
+        if (payment) {
+          logger.info('Strategy 2: Found payment by extracted code', { code: extractedCode, paymentId: payment.id });
+        }
       }
     }
 
-    // Strategy 3: Find by amount (for e-wallets like MOMO)
-    if (!payment && webhookData.amount) {
-      payment = await findPaymentByAmount(webhookData.amount);
+    // Strategy 3: Find by amount (for e-wallets like MOMO or when code not found)
+    // WHY: Fallback strategy nếu không tìm thấy code
+    if (!payment && webhookAmount) {
+      logger.info('Strategy 3: Searching payment by amount', { amount: webhookAmount });
+      payment = await findPaymentByAmount(webhookAmount);
+      if (payment) {
+        logger.info('Strategy 3: Found payment by amount', { amount: webhookAmount, paymentId: payment.id });
+      }
     }
 
     if (!payment) {
-      logger.warn('Payment not found for webhook', { webhookData });
+      logger.warn('Payment not found for webhook', { 
+        webhookData,
+        strategies: {
+          code: webhookData.code,
+          content: webhookData.content,
+          extractedCode: webhookData.content ? extractCodeFromContent(webhookData.content) : null,
+          amount: webhookAmount,
+        },
+      });
       return reply.status(404).send({
         error: {
           message: 'Payment not found',
@@ -676,11 +741,14 @@ export async function sepayWebhookHandler(
     }
 
     // Verify amount matches
-    if (webhookData.amount && webhookData.amount !== payment.amount) {
+    // WHY: Đảm bảo số tiền webhook nhận được khớp với payment
+    if (webhookAmount && webhookAmount !== payment.amount) {
       logger.warn('Amount mismatch', {
         paymentId: payment.id,
+        paymentCode: payment.code,
         expected: payment.amount,
-        received: webhookData.amount,
+        received: webhookAmount,
+        webhookData,
       });
       return reply.status(400).send({
         error: {
