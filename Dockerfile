@@ -2,12 +2,12 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+# Copy package files (bao gồm package-lock.json)
+COPY package.json package-lock.json* ./
 COPY prisma ./prisma/
 
 # Install dependencies
-RUN npm ci && npm cache clean --force
+RUN npm install && npm cache clean --force
 
 # Copy source code
 COPY . .
