@@ -16,7 +16,6 @@ import {
   getPendingPaymentHandler,
   cancelPendingPaymentHandler,
   cancelPaymentByIdHandler,
-  sepayWebhookHandler,
   getAllPaymentsHandler,
   manualCompletePaymentHandler,
 } from '../../controllers/payment/payment.controller';
@@ -24,13 +23,9 @@ import { authenticate } from '../../middleware/auth';
 import { requireAdmin, requireSuperAdmin } from '../../middleware/role-check';
 
 export async function paymentRoutes(fastify: FastifyInstance) {
-  // WHY: Webhook endpoint phải được đăng ký trong route group riêng
-  // - Tránh bị ảnh hưởng bởi hooks (authenticate, requireAdmin)
-  // - Webhook là public endpoint, không cần authentication
-  fastify.register(async function (webhookFastify) {
-    // Public webhook endpoint (no auth required)
-    webhookFastify.post('/webhook/sepay', sepayWebhookHandler);
-  });
+  // WHY: Webhook endpoint đã được đăng ký ở routes/index.ts
+  // - Đăng ký ở level cao hơn để tránh middleware auth
+  // - Không cần đăng ký lại ở đây
 
   // Admin endpoints (require authentication + admin role)
   fastify.addHook('preHandler', authenticate);

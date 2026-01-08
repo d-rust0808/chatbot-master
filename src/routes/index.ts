@@ -19,6 +19,7 @@ import { adminRoutes } from './admin.routes';
 import { catalogRoutes } from './catalog/catalog.routes';
 import { billingRoutes } from './billing/billing.routes';
 import { paymentRoutes } from './payment/payment.routes';
+import { sepayWebhookHandler } from '../controllers/payment/payment.controller';
 import { tenantServiceRoutes } from './tenant-service/tenant-service.routes';
 import { creditRoutes } from './wallet/credit.routes';
 import { servicePackageRoutes } from './service-package/service-package.routes';
@@ -59,6 +60,11 @@ export async function setupRoutes(fastify: FastifyInstance) {
 
   // Register tenant service & workflow routes (tenant-level)
   await fastify.register(tenantServiceRoutes);
+
+  // WHY: Webhook endpoint phải được đăng ký TRƯỚC payment routes
+  // - Tránh bị ảnh hưởng bởi middleware auth trong payment routes
+  // - Webhook là public endpoint, không cần authentication
+  fastify.post('/admin/payments/webhook/sepay', sepayWebhookHandler);
 
   // Register payment routes (admin only)
   await fastify.register(paymentRoutes, { prefix: '/admin/payments' });
