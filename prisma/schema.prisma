@@ -686,3 +686,41 @@ model AIRequestLog {
   @@index([createdAt])
   @@map("ai_request_logs")
 }
+
+// IP Blacklist
+// WHY: Block specific IP addresses từ accessing system
+model IPBlacklist {
+  id          String   @id @default(cuid())
+  ipAddress   String   // IP address hoặc CIDR range (e.g., "192.168.1.1" hoặc "192.168.1.0/24")
+  reason      String?  // Lý do ban (optional)
+  bannedBy    String?  // User ID của admin ban IP này
+  isActive    Boolean  @default(true) // Có thể tạm thời disable
+  expiresAt   DateTime? // Optional: IP tự động unban sau thời gian này
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([ipAddress])
+  @@index([ipAddress])
+  @@index([isActive])
+  @@index([expiresAt])
+  @@map("ip_blacklist")
+}
+
+// IP Whitelist
+// WHY: Allow specific IP addresses bypass rate limits và other restrictions
+model IPWhitelist {
+  id          String   @id @default(cuid())
+  ipAddress   String   // IP address hoặc CIDR range
+  reason      String?  // Lý do whitelist (optional)
+  addedBy     String?  // User ID của admin add IP này
+  isActive    Boolean  @default(true)
+  expiresAt   DateTime? // Optional: IP tự động remove sau thời gian này
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([ipAddress])
+  @@index([ipAddress])
+  @@index([isActive])
+  @@index([expiresAt])
+  @@map("ip_whitelist")
+}

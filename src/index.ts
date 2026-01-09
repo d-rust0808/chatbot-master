@@ -14,6 +14,7 @@ import { setupRoutes } from './routes';
 import { errorHandler } from './infrastructure/error-handler';
 import { tenantMiddleware } from './middleware/tenant';
 import { rateLimitMiddleware } from './middleware/rate-limit';
+import { checkIPMiddleware } from './middleware/ip-check';
 import { performHealthCheck } from './infrastructure/health-check';
 import { webSocketServer } from './infrastructure/websocket';
 import { bootstrapAdmin } from './infrastructure/bootstrap-admin';
@@ -85,6 +86,12 @@ app.addHook('onRequest', async (request, reply) => {
     logger.debug('OPTIONS preflight request', { url: request.url });
     reply.status(204).send();
     return;
+  }
+
+  // IP check (block blacklisted IPs early)
+  await checkIPMiddleware(request, reply);
+  if (reply.sent) {
+    return; // IP was blocked, stop processing
   }
 
   // Rate limiting (sau khi set CORS headers)

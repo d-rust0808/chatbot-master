@@ -44,6 +44,18 @@ import {
   listAILogsHandler,
   getSuspiciousIPsHandler,
 } from '../controllers/admin/ai-log.controller';
+import {
+  addToBlacklistHandler,
+  removeFromBlacklistHandler,
+  getBlacklistHandler,
+  addToWhitelistHandler,
+  removeFromWhitelistHandler,
+  getWhitelistHandler,
+  banIPHandler,
+  unbanIPHandler,
+  toggleBlacklistStatusHandler,
+  toggleWhitelistStatusHandler,
+} from '../controllers/admin/ip-management.controller';
 import { checkBalanceHandler } from '../controllers/ai/ai.controller';
 // Use existing admin controller with image upload support
 import {
@@ -228,5 +240,23 @@ export async function adminRoutes(fastify: FastifyInstance) {
   // WHY: SP-Admin xem AI request logs và monitor suspicious IPs
   fastify.get('/ai-logs', listAILogsHandler);
   fastify.get('/ai-logs/suspicious-ips', getSuspiciousIPsHandler);
+
+  // IP Management (sp-admin only)
+  // WHY: SP-Admin quản lý IP blacklist/whitelist
+  // Blacklist
+  fastify.get('/ip-management/blacklist', getBlacklistHandler);
+  fastify.post('/ip-management/blacklist', addToBlacklistHandler);
+  fastify.delete('/ip-management/blacklist/:ipAddress', removeFromBlacklistHandler);
+  fastify.patch('/ip-management/blacklist/:ipAddress/toggle', toggleBlacklistStatusHandler);
+  
+  // Whitelist
+  fastify.get('/ip-management/whitelist', getWhitelistHandler);
+  fastify.post('/ip-management/whitelist', addToWhitelistHandler);
+  fastify.delete('/ip-management/whitelist/:ipAddress', removeFromWhitelistHandler);
+  fastify.patch('/ip-management/whitelist/:ipAddress/toggle', toggleWhitelistStatusHandler);
+  
+  // Ban/Unban (aliases)
+  fastify.post('/ip-management/ban', banIPHandler);
+  fastify.delete('/ip-management/ban/:ipAddress', unbanIPHandler);
 }
 
