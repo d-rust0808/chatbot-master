@@ -54,6 +54,10 @@ export class WebSocketServer {
           this.connectedClients.set(tenantId, new Set());
         }
         this.connectedClients.get(tenantId)!.add(socket.id);
+        
+        // Auto-join tenant room để nhận balance updates
+        socket.join(`tenant:${tenantId}`);
+        logger.debug(`Client ${socket.id} joined tenant room: ${tenantId}`);
       }
 
       // Handle disconnect
@@ -126,6 +130,26 @@ export class WebSocketServer {
       connectionId,
       status,
     });
+  }
+
+  /**
+   * Emit wallet balance update
+   * WHY: Real-time balance updates khi nạp tiền, mua credit, hoặc có giao dịch
+   */
+  emitBalanceUpdate(tenantId: string, balances: { vnd: number; credit: number }): void {
+    if (!this.io) return;
+
+    // Emit to all clients of this tenant
+    this.io.to(`tenant:${tenantId}`).emit('wallet:balance:update', {
+      tenantId,
+      balances: {
+        vnd: balances.vnd,
+        credit: balances.credit,
+      },
+      timestamp: new Date().toISOString(),
+    });
+
+    logger.debug('Balance update emitted', { tenantId, balances });
   }
 
   /**

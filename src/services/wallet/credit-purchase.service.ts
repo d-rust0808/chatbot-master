@@ -15,6 +15,7 @@ import {
   InsufficientCreditsError,
   CreditOperationError,
 } from '../../errors/wallet/credit.errors';
+import { webSocketServer } from '../../infrastructure/websocket';
 
 // Default rate: 1 VNĐ = 1 credit
 const DEFAULT_CREDIT_RATE = 1;
@@ -100,6 +101,32 @@ export async function purchaseCredits(
       vndTransactionId,
       creditTransactionId,
     });
+
+    // Emit balance update via WebSocket
+    // WHY: Frontend cần cập nhật số dư real-time khi mua credit thành công
+    try {
+      const [vndBalance, creditBalance] = await Promise.all([
+        vndWalletService.getBalance(tenantId),
+        creditService.getBalance(tenantId),
+      ]);
+
+      webSocketServer.emitBalanceUpdate(tenantId, {
+        vnd: vndBalance,
+        credit: creditBalance,
+      });
+
+      logger.debug('Balance update emitted after credit purchase', {
+        tenantId,
+        vndBalance,
+        creditBalance,
+      });
+    } catch (balanceError) {
+      // Log error nhưng không fail purchase
+      logger.warn('Failed to emit balance update', {
+        tenantId,
+        error: balanceError instanceof Error ? balanceError.message : balanceError,
+      });
+    }
 
     return {
       vndAmount,
@@ -206,6 +233,32 @@ export async function purchaseCreditPackage(
       totalCredits,
       vndTransactionId,
     });
+
+    // Emit balance update via WebSocket
+    // WHY: Frontend cần cập nhật số dư real-time khi mua package thành công
+    try {
+      const [vndBalance, creditBalance] = await Promise.all([
+        vndWalletService.getBalance(tenantId),
+        creditService.getBalance(tenantId),
+      ]);
+
+      webSocketServer.emitBalanceUpdate(tenantId, {
+        vnd: vndBalance,
+        credit: creditBalance,
+      });
+
+      logger.debug('Balance update emitted after package purchase', {
+        tenantId,
+        vndBalance,
+        creditBalance,
+      });
+    } catch (balanceError) {
+      // Log error nhưng không fail purchase
+      logger.warn('Failed to emit balance update', {
+        tenantId,
+        error: balanceError instanceof Error ? balanceError.message : balanceError,
+      });
+    }
 
     return {
       packageName: creditPackage.name,

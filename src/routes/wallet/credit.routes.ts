@@ -8,6 +8,7 @@
 
 import { FastifyInstance } from 'fastify';
 import {
+  getAllBalancesHandler,
   getBalanceHandler,
   getTransactionHistoryHandler,
   getVNDBalanceHandler,
@@ -22,12 +23,15 @@ export async function creditRoutes(fastify: FastifyInstance) {
   // All credit routes require authentication
   fastify.addHook('preHandler', authenticate);
 
+  // Get all balances (VND + Credit) - Recommended for frontend
+  fastify.get('/balances', getAllBalancesHandler); // Both VND and Credit balances
+
   // Credit wallet (for AI usage)
-  fastify.get('/balance', getBalanceHandler); // Credit balance
+  fastify.get('/balance', getBalanceHandler); // Credit balance only
   fastify.get('/transactions', getTransactionHistoryHandler); // Credit transactions
 
   // VND wallet (real money)
-  fastify.get('/vnd-balance', getVNDBalanceHandler); // VND balance
+  fastify.get('/vnd-balance', getVNDBalanceHandler); // VND balance only
   fastify.get('/vnd-transactions', getVNDTransactionHistoryHandler); // VND transactions
 
   // Purchase credits

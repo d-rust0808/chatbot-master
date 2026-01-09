@@ -13,6 +13,8 @@ import { prisma } from '../../infrastructure/database';
 import { logger } from '../../infrastructure/logger';
 import { config } from '../../infrastructure/config';
 import { vndWalletService } from '../wallet/vnd-wallet.service';
+import { creditService } from '../wallet/credit.service';
+import { webSocketServer } from '../../infrastructure/websocket';
 
 // Constants
 const MIN_AMOUNT = 10000; // 10,000 VNĐ tối thiểu
@@ -349,6 +351,32 @@ export async function completePayment(
       webhookData,
     }
   );
+
+  // Emit balance update via WebSocket
+  // WHY: Frontend cần cập nhật số dư real-time khi nạp tiền thành công
+  try {
+    const [vndBalance, creditBalance] = await Promise.all([
+      vndWalletService.getBalance(payment.tenantId),
+      creditService.getBalance(payment.tenantId),
+    ]);
+
+    webSocketServer.emitBalanceUpdate(payment.tenantId, {
+      vnd: vndBalance,
+      credit: creditBalance,
+    });
+
+    logger.info('Balance update emitted after payment completion', {
+      tenantId: payment.tenantId,
+      vndBalance,
+      creditBalance,
+    });
+  } catch (balanceError) {
+    // Log error nhưng không fail payment completion
+    logger.warn('Failed to emit balance update', {
+      tenantId: payment.tenantId,
+      error: balanceError instanceof Error ? balanceError.message : balanceError,
+    });
+  }
 
   logger.info('Payment completed and VND added to wallet', {
     paymentId,

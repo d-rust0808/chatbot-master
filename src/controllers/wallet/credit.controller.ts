@@ -33,6 +33,54 @@ const purchaseCreditsSchema = z.object({
 });
 
 /**
+ * Get all balances (VND + Credit)
+ * GET /api/v1/credits/balances
+ * WHY: Frontend cần get cả VND và Credit balance cùng lúc để hiển thị
+ */
+export async function getAllBalancesHandler(
+  request: FastifyRequest,
+  reply: FastifyReply
+) {
+  try {
+    const authRequest = request as AuthenticatedRequest;
+    const tenantId = authRequest.user?.tenantId;
+
+    if (!tenantId) {
+      return reply.status(401).send({
+        error: {
+          message: 'Unauthorized',
+          statusCode: 401,
+        },
+      });
+    }
+
+    const [vndBalance, creditBalance] = await Promise.all([
+      vndWalletService.getBalance(tenantId),
+      creditService.getBalance(tenantId),
+    ]);
+
+    return reply.status(200).send({
+      success: true,
+      data: {
+        balances: {
+          vnd: vndBalance,
+          credit: creditBalance,
+        },
+        tenantId,
+      },
+    });
+  } catch (error) {
+    logger.error('Get all balances error:', error);
+    return reply.status(500).send({
+      error: {
+        message: 'Internal server error',
+        statusCode: 500,
+      },
+    });
+  }
+}
+
+/**
  * Get credit balance
  * GET /api/v1/credits/balance
  */
