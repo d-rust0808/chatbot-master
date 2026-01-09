@@ -25,6 +25,7 @@ import {
   updateTenantAdminHandler,
   deleteTenantAdminHandler,
   topUpUserBalanceHandler,
+  getAdminBalanceLogsHandler,
 } from '../controllers/admin/admin.controller';
 // Use existing admin controller with image upload support
 import {
@@ -90,6 +91,9 @@ export async function adminRoutes(fastify: FastifyInstance) {
   
   // Top-up user balance (sp-admin only)
   fastify.post('/users/:userId/top-up', topUpUserBalanceHandler);
+  
+  // Get admin balance logs (sp-admin only)
+  fastify.get('/users/:adminId/balance-logs', getAdminBalanceLogsHandler);
 
   // Tenant management (sp-admin only)
   fastify.get('/tenants', listTenantsHandler);

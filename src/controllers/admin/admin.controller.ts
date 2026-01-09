@@ -65,6 +65,14 @@ const topUpUserBalanceSchema = z.object({
   reason: z.string().min(1).max(500).optional().default('Manual top-up by admin'),
 });
 
+const getAdminBalanceLogsSchema = z.object({
+  page: z.string().optional().transform((val) => (val ? parseInt(val, 10) : 1)),
+  limit: z.string().optional().transform((val) => (val ? parseInt(val, 10) : 50)),
+  startDate: z.string().optional().transform((val) => (val ? new Date(val) : undefined)),
+  endDate: z.string().optional().transform((val) => (val ? new Date(val) : undefined)),
+  type: z.enum(['vnd', 'credit', 'all']).optional().default('all'),
+});
+
 /**
  * Get system statistics (Admin only)
  */
@@ -1523,6 +1531,232 @@ export async function topUpUserBalanceHandler(
     }
 
     logger.error('Top-up user balance error:', error);
+    return reply.status(500).send({
+      error: {
+        message: error instanceof Error ? error.message : 'Internal server error',
+        statusCode: 500,
+      },
+    });
+  }
+}
+
+/**
+ * Get admin balance logs
+ * WHY: Hiển thị logs biến động số dư của từng admin (các transactions mà admin thực hiện)
+ */
+export async function getAdminBalanceLogsHandler(
+  request: FastifyRequest<{
+    Params: { adminId: string };
+    Querystring: {
+      page?: string;
+      limit?: string;
+      startDate?: string;
+      endDate?: string;
+      type?: 'vnd' | 'credit' | 'all';
+    };
+  }>,
+  reply: FastifyReply
+) {
+  try {
+    const { adminId } = request.params;
+    const validated = getAdminBalanceLogsSchema.parse(request.query);
+
+    // Verify admin exists
+    const admin = await prisma.user.findUnique({
+      where: { id: adminId },
+      select: { id: true, email: true, name: true },
+    });
+
+    if (!admin) {
+      return reply.status(404).send({
+        error: {
+          message: 'Admin not found',
+          statusCode: 404,
+        },
+      });
+    }
+
+    const page = validated.page || 1;
+    const limit = Math.min(validated.limit || 50, 100);
+    const skip = (page - 1) * limit;
+
+    // Build date filter
+    const dateFilter: any = {};
+    if (validated.startDate || validated.endDate) {
+      dateFilter.createdAt = {};
+      if (validated.startDate) {
+        dateFilter.createdAt.gte = validated.startDate;
+      }
+      if (validated.endDate) {
+        dateFilter.createdAt.lte = validated.endDate;
+      }
+    }
+
+    // Query VND transactions if type is 'vnd' or 'all'
+    // Use raw query to filter by JSON metadata field
+    const vndTransactionsPromise =
+      validated.type === 'credit'
+        ? Promise.resolve({ transactions: [], total: 0 })
+        : (async () => {
+            // Build where clause with JSON filter
+            const whereClause: any = {
+              ...dateFilter,
+            };
+
+            // Use Prisma's JSON filter syntax
+            const allVndTransactions = await (prisma as any).vNDTransaction.findMany({
+              where: whereClause,
+              select: {
+                id: true,
+                amount: true,
+                reason: true,
+                tenantId: true,
+                referenceId: true,
+                metadata: true,
+                createdAt: true,
+              },
+              orderBy: { createdAt: 'desc' },
+            });
+
+            // Filter by metadata.adminUserId in memory (Prisma JSON filter is complex)
+            const filteredVndTransactions = allVndTransactions.filter((t: any) => {
+              const metadata = t.metadata as any;
+              return metadata?.adminUserId === adminId && metadata?.adminAction === true;
+            });
+
+            // Apply pagination after filtering
+            const paginatedTransactions = filteredVndTransactions.slice(skip, skip + limit);
+            const total = filteredVndTransactions.length;
+
+            return {
+              transactions: paginatedTransactions.map((t: any) => ({
+                ...t,
+                type: 'vnd' as const,
+              })),
+              total,
+            };
+          })();
+
+    // Query Credit transactions if type is 'credit' or 'all'
+    const creditTransactionsPromise =
+      validated.type === 'vnd'
+        ? Promise.resolve({ transactions: [], total: 0 })
+        : (async () => {
+            const whereClause: any = {
+              ...dateFilter,
+            };
+
+            const allCreditTransactions = await (prisma as any).creditTransaction.findMany({
+              where: whereClause,
+              select: {
+                id: true,
+                amount: true,
+                reason: true,
+                tenantId: true,
+                referenceId: true,
+                metadata: true,
+                createdAt: true,
+              },
+              orderBy: { createdAt: 'desc' },
+            });
+
+            // Filter by metadata.adminUserId in memory
+            const filteredCreditTransactions = allCreditTransactions.filter((t: any) => {
+              const metadata = t.metadata as any;
+              return metadata?.adminUserId === adminId && metadata?.adminAction === true;
+            });
+
+            // Apply pagination after filtering
+            const paginatedTransactions = filteredCreditTransactions.slice(skip, skip + limit);
+            const total = filteredCreditTransactions.length;
+
+            return {
+              transactions: paginatedTransactions.map((t: any) => ({
+                ...t,
+                type: 'credit' as const,
+              })),
+              total,
+            };
+          })();
+
+    const [vndResult, creditResult] = await Promise.all([
+      vndTransactionsPromise,
+      creditTransactionsPromise,
+    ]);
+
+    // Merge all transactions and sort by createdAt desc
+    let allTransactions = [...vndResult.transactions, ...creditResult.transactions];
+    allTransactions.sort((a, b) => {
+      const dateA = new Date(a.createdAt).getTime();
+      const dateB = new Date(b.createdAt).getTime();
+      return dateB - dateA;
+    });
+
+    // Total count before pagination
+    const totalTransactions = allTransactions.length;
+
+    // Apply pagination after merging and sorting
+    const paginatedTransactions = allTransactions.slice(skip, skip + limit);
+
+    // Get unique tenant IDs to enrich with tenant info
+    const tenantIds = [...new Set(paginatedTransactions.map((t) => t.tenantId))];
+    const tenants = await prisma.tenant.findMany({
+      where: { id: { in: tenantIds } },
+      select: { id: true, name: true },
+    });
+
+    const tenantMap = new Map(tenants.map((t) => [t.id, t]));
+
+    // Enrich transactions with tenant info
+    const enrichedTransactions = paginatedTransactions.map((txn) => {
+      const tenant = tenantMap.get(txn.tenantId);
+      return {
+        id: txn.id,
+        type: txn.type,
+        amount: txn.amount,
+        reason: txn.reason,
+        tenantId: txn.tenantId,
+        tenantName: tenant?.name || 'Unknown',
+        createdAt: txn.createdAt,
+        referenceId: txn.referenceId,
+        metadata: txn.metadata,
+      };
+    });
+
+    logger.info('Admin balance logs retrieved', {
+      adminId,
+      totalTransactions,
+      returnedCount: enrichedTransactions.length,
+      type: validated.type,
+    });
+
+    return reply.status(200).send({
+      success: true,
+      data: enrichedTransactions,
+      meta: {
+        page,
+        limit,
+        total: totalTransactions,
+        totalPages: Math.ceil(totalTransactions / limit),
+        admin: {
+          id: admin.id,
+          email: admin.email,
+          name: admin.name,
+        },
+      },
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return reply.status(400).send({
+        error: {
+          message: 'Validation error',
+          statusCode: 400,
+          details: error.errors,
+        },
+      });
+    }
+
+    logger.error('Get admin balance logs error:', error);
     return reply.status(500).send({
       error: {
         message: error instanceof Error ? error.message : 'Internal server error',
