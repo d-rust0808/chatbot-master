@@ -9,7 +9,7 @@
 
 import axios from 'axios';
 import { logger } from '../../infrastructure/logger';
-import { config } from '../../infrastructure/config';
+import { getProxyConfig } from '../system-config/proxy-config.service';
 
 interface BalanceResponse {
   remain_quota: number;
@@ -31,7 +31,9 @@ export class ProxyBalanceService {
     total: number;
     percentage: number;
   }> {
-    if (!config.proxy.apiKey) {
+    const proxyConfig = await getProxyConfig();
+    
+    if (!proxyConfig.apiKey) {
       throw new Error('PROXY_API_KEY is not set');
     }
 
@@ -40,7 +42,7 @@ export class ProxyBalanceService {
         `${this.baseUrl}/check-balance`,
         {
           params: {
-            key: config.proxy.apiKey,
+            key: proxyConfig.apiKey,
           },
         }
       );
@@ -67,14 +69,16 @@ export class ProxyBalanceService {
    * Get API logs
    */
   async getLogs(): Promise<string> {
-    if (!config.proxy.apiKey) {
+    const proxyConfig = await getProxyConfig();
+    
+    if (!proxyConfig.apiKey) {
       throw new Error('PROXY_API_KEY is not set');
     }
 
     try {
       const response = await axios.get<string>(`${this.baseUrl}/log`, {
         params: {
-          key: config.proxy.apiKey,
+          key: proxyConfig.apiKey,
         },
       });
 

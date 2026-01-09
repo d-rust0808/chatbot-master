@@ -54,9 +54,9 @@ model Tenant {
   vndTransactions    VNDTransaction[]
   paymentRecords     PaymentRecord[]
 
-  services  TenantService[]
-  workflows Workflow[]
-  payments  Payment[]
+  services             TenantService[]
+  workflows            Workflow[]
+  payments             Payment[]
   serviceSubscriptions ServiceSubscription[]
 
   @@map("tenants")
@@ -566,18 +566,18 @@ model Payment {
 
 /// Gói dịch vụ (WhatsApp, Messenger, TikTok, etc.)
 model ServicePackage {
-  id          String   @id @default(cuid())
-  name        String   // e.g. "Gói WhatsApp"
-  description String?
-  service     String   // whatsapp, messenger, tiktok, zalo, etc.
-  pricePerMonth Int    // Giá VNĐ/tháng (base price)
-  minDuration Int      @default(1) // Số tháng tối thiểu
-  imageUrl    String?  // URL ảnh gói dịch vụ
-  features    Json?    // Tính năng của gói
-  isActive    Boolean  @default(true)
-  sortOrder   Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id            String   @id @default(cuid())
+  name          String // e.g. "Gói WhatsApp"
+  description   String?
+  service       String // whatsapp, messenger, tiktok, zalo, etc.
+  pricePerMonth Int // Giá VNĐ/tháng (base price)
+  minDuration   Int      @default(1) // Số tháng tối thiểu
+  imageUrl      String? // URL ảnh gói dịch vụ
+  features      Json? // Tính năng của gói
+  isActive      Boolean  @default(true)
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   subscriptions ServiceSubscription[]
 
@@ -588,21 +588,21 @@ model ServicePackage {
 
 /// Đăng ký gói dịch vụ của tenant
 model ServiceSubscription {
-  id            String   @id @default(cuid())
-  tenantId      String
-  packageId     String
-  duration      Int      // Số tháng đã chọn (1, 2, 3, 4, 5)
-  price         Int      // Giá đã thanh toán (pricePerMonth * duration)
-  status        String   @default("active") // active, expired, cancelled
-  startDate     DateTime @default(now())
-  endDate       DateTime
-  autoRenew     Boolean  @default(false)
-  cancelledAt   DateTime?
-  metadata      Json?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id          String    @id @default(cuid())
+  tenantId    String
+  packageId   String
+  duration    Int // Số tháng đã chọn (1, 2, 3, 4, 5)
+  price       Int // Giá đã thanh toán (pricePerMonth * duration)
+  status      String    @default("active") // active, expired, cancelled
+  startDate   DateTime  @default(now())
+  endDate     DateTime
+  autoRenew   Boolean   @default(false)
+  cancelledAt DateTime?
+  metadata    Json?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
-  tenant  Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant  Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   package ServicePackage @relation(fields: [packageId], references: [id], onDelete: Restrict)
 
   @@index([tenantId, status, endDate])
@@ -617,13 +617,13 @@ model ServiceSubscription {
 /// - Track ai đã thay đổi config (audit trail)
 model SystemConfig {
   id          String   @id @default(cuid())
-  category    String   // platform | ai | security | billing | features | maintenance | safeguards
-  key         String   // Unique key (e.g., "rate_limit.whatsapp.messages_per_minute")
-  value       Json     // Flexible JSON value
-  type        String   // string | number | boolean | object | array
-  description String?  // Human-readable description
+  category    String // platform | ai | security | billing | features | maintenance | safeguards
+  key         String // Unique key (e.g., "rate_limit.whatsapp.messages_per_minute")
+  value       Json // Flexible JSON value
+  type        String // string | number | boolean | object | array
+  description String? // Human-readable description
   isEditable  Boolean  @default(true) // Can be changed via API
-  updatedBy   String?  // User ID (sp-admin) who last updated
+  updatedBy   String? // User ID (sp-admin) who last updated
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -631,4 +631,58 @@ model SystemConfig {
   @@index([category])
   @@index([key])
   @@map("system_configs")
+}
+
+/// AI Request Log
+/// WHY: Track AI API calls để monitor usage và costs
+/// - Log mọi request đến AI providers
+/// - Track tokens, costs, IP addresses
+/// - Hiển thị logs cho SP-Admin
+model AIRequestLog {
+  id             String  @id @default(cuid())
+  tenantId       String? // Optional: có thể là system-level request
+  userId         String? // Optional: user who made request
+  conversationId String? // Optional: conversation context
+  chatbotId      String? // Optional: chatbot context
+
+  // Request info
+  provider      String // openai | gemini | deepseek
+  model         String // Model name (e.g., "gpt-4o-mini")
+  requestUrl    String? // Full request URL
+  requestMethod String  @default("POST")
+  requestBody   Json? // Request payload
+
+  // Response info
+  statusCode   Int? // HTTP status code
+  responseTime Int? // Response time in milliseconds
+  tokens       Json? // { prompt, completion, total }
+  cost         Decimal? // Calculated cost in USD
+
+  // Pricing info (from model config)
+  modelRatio         Decimal?
+  outputRatio        Decimal?
+  cacheRatio         Decimal?
+  cacheCreationRatio Decimal?
+  groupRatio         Decimal?
+  promptPrice        Decimal? // $ per 1M tokens
+  completionPrice    Decimal? // $ per 1M tokens
+  cachePrice         Decimal? // $ per 1M tokens
+  cacheCreationPrice Decimal? // $ per 1M tokens
+
+  // IP tracking
+  ipAddress String? // Client IP address
+  userAgent String? // User agent
+
+  // Metadata
+  metadata Json? // Additional metadata
+  error    String? // Error message if failed
+
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, createdAt])
+  @@index([provider, createdAt])
+  @@index([model, createdAt])
+  @@index([ipAddress, createdAt])
+  @@index([createdAt])
+  @@map("ai_request_logs")
 }

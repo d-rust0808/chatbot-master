@@ -12,30 +12,58 @@ import { IAIProvider } from '../../domain/ai-provider.interface';
 import type { ChatMessage, AIConfig, AIResponse } from '../../types/ai';
 import { logger } from '../../infrastructure/logger';
 import { config } from '../../infrastructure/config';
+import { getProxyConfig } from '../system-config/proxy-config.service';
 
 /**
  * OpenAI Provider Implementation
  * WHY: Support cả direct OpenAI và v98store proxy
  */
 export class OpenAIProvider implements IAIProvider {
-  private client: OpenAI;
+  private client: OpenAI | null = null;
+  private clientPromise: Promise<OpenAI> | null = null;
 
-  constructor() {
+  /**
+   * Get or create OpenAI client
+   * WHY: Lazy load với async config từ System Config
+   */
+  private async getClient(): Promise<OpenAI> {
+    if (this.client) {
+      return this.client;
+    }
+
+    if (this.clientPromise) {
+      return this.clientPromise;
+    }
+
+    this.clientPromise = this.initializeClient();
+    this.client = await this.clientPromise;
+    return this.client;
+  }
+
+  /**
+   * Initialize client với config từ System Config hoặc env
+   */
+  private async initializeClient(): Promise<OpenAI> {
+    // Get proxy config từ System Config (fallback to env)
+    const proxyConfig = await getProxyConfig();
+
     // Ưu tiên dùng proxy nếu có config
-    if (config.proxy.apiKey && config.proxy.apiBase) {
-      this.client = new OpenAI({
-        apiKey: config.proxy.apiKey,
-        baseURL: config.proxy.apiBase,
+    if (proxyConfig.apiKey && proxyConfig.apiBase) {
+      const client = new OpenAI({
+        apiKey: proxyConfig.apiKey,
+        baseURL: proxyConfig.apiBase,
         defaultHeaders: {
           'Accept-Encoding': 'identity',
         },
       });
       logger.info('Using v98store proxy for OpenAI API');
+      return client;
     } else if (config.openai.apiKey) {
-      this.client = new OpenAI({
+      const client = new OpenAI({
         apiKey: config.openai.apiKey,
       });
       logger.info('Using direct OpenAI API');
+      return client;
     } else {
       throw new Error('Either OPENAI_API_KEY or PROXY_API_KEY must be set');
     }
@@ -53,13 +81,16 @@ export class OpenAIProvider implements IAIProvider {
     const initialDelayMs = 1000;
     let lastError: Error | unknown;
 
+    // Get client (lazy load)
+    const client = await this.getClient();
+
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
         // Use model from config (chatbot config) - không override với proxy model
         // WHY: Mỗi chatbot có thể chọn model riêng
         const model = aiConfig.model;
 
-        const response = await this.client.chat.completions.create({
+        const response = await client.chat.completions.create({
           model,
           messages: messages.map((m) => ({
             role: m.role as 'system' | 'user' | 'assistant',
@@ -112,11 +143,12 @@ export class OpenAIProvider implements IAIProvider {
 
         if (!isRetryable || attempt >= maxRetries) {
           // Log full error details
+          const proxyConfig = await getProxyConfig();
           logger.error('OpenAI API error:', {
             ...errorDetails,
             attempt: attempt + 1,
             model: aiConfig.model,
-            baseURL: config.proxy.apiBase || 'https://api.openai.com/v1',
+            baseURL: proxyConfig.apiBase || 'https://api.openai.com/v1',
           });
 
           // Build detailed error message
@@ -153,7 +185,8 @@ export class OpenAIProvider implements IAIProvider {
     onChunk: (chunk: string) => void
   ): Promise<void> {
     try {
-      const stream = await this.client.chat.completions.create({
+      const client = await this.getClient();
+      const stream = await client.chat.completions.create({
         model: aiConfig.model,
         messages: messages.map((m) => ({
           role: m.role as 'system' | 'user' | 'assistant',

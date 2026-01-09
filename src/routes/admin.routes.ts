@@ -36,6 +36,17 @@ import {
   deleteSystemConfigHandler,
   initializeSystemConfigsHandler,
 } from '../controllers/admin/system-config.controller';
+import {
+  listAIModelsHandler,
+  getAIModelHandler,
+  createAIModelHandler,
+  updateAIModelHandler,
+  deleteAIModelHandler,
+} from '../controllers/admin/ai-model.controller';
+import {
+  listAILogsHandler,
+  getSuspiciousIPsHandler,
+} from '../controllers/admin/ai-log.controller';
 // Use existing admin controller with image upload support
 import {
   createServicePackageHandler,
@@ -204,5 +215,18 @@ export async function adminRoutes(fastify: FastifyInstance) {
   fastify.patch('/system-configs/:category/:key', updateSystemConfigHandler);
   fastify.delete('/system-configs/:category/:key', deleteSystemConfigHandler);
   fastify.post('/system-configs/initialize', initializeSystemConfigsHandler);
+
+  // AI Models management (sp-admin only)
+  // WHY: SP-Admin quản lý AI models (thêm/sửa/xóa)
+  fastify.get('/ai-models', listAIModelsHandler);
+  fastify.get('/ai-models/:name', getAIModelHandler);
+  fastify.post('/ai-models', createAIModelHandler);
+  fastify.patch('/ai-models/:name', updateAIModelHandler);
+  fastify.delete('/ai-models/:name', deleteAIModelHandler);
+
+  // AI Logs management (sp-admin only)
+  // WHY: SP-Admin xem AI request logs và monitor suspicious IPs
+  fastify.get('/ai-logs', listAILogsHandler);
+  fastify.get('/ai-logs/suspicious-ips', getSuspiciousIPsHandler);
 }
 

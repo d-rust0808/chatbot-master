@@ -11,32 +11,57 @@ import OpenAI from 'openai';
 import { IAIProvider } from '../../domain/ai-provider.interface';
 import type { ChatMessage, AIConfig, AIResponse } from '../../types/ai';
 import { logger } from '../../infrastructure/logger';
-import { config } from '../../infrastructure/config';
+import { getProxyConfig } from '../system-config/proxy-config.service';
 
 /**
  * DeepSeek Provider Implementation
  * WHY: DeepSeek uses OpenAI-compatible API
  */
 export class DeepSeekProvider implements IAIProvider {
-  private client: OpenAI;
+  private client: OpenAI | null = null;
+  private clientPromise: Promise<OpenAI> | null = null;
   private readonly maxRetries = 3;
   private readonly initialDelayMs = 1000;
 
-  constructor() {
-    if (!config.proxy.apiKey || !config.proxy.apiBase) {
+  /**
+   * Get or create OpenAI client
+   * WHY: Lazy load với async config từ System Config
+   */
+  private async getClient(): Promise<OpenAI> {
+    if (this.client) {
+      return this.client;
+    }
+
+    if (this.clientPromise) {
+      return this.clientPromise;
+    }
+
+    this.clientPromise = this.initializeClient();
+    this.client = await this.clientPromise;
+    return this.client;
+  }
+
+  /**
+   * Initialize client với config từ System Config hoặc env
+   */
+  private async initializeClient(): Promise<OpenAI> {
+    const proxyConfig = await getProxyConfig();
+
+    if (!proxyConfig.apiKey || !proxyConfig.apiBase) {
       throw new Error('PROXY_API_KEY and PROXY_API_BASE are required for DeepSeek');
     }
 
     // DeepSeek uses OpenAI-compatible API qua v98store proxy
-    this.client = new OpenAI({
-      apiKey: config.proxy.apiKey,
-      baseURL: config.proxy.apiBase,
+    const client = new OpenAI({
+      apiKey: proxyConfig.apiKey,
+      baseURL: proxyConfig.apiBase,
       defaultHeaders: {
         'Accept-Encoding': 'identity',
       },
     });
 
     logger.info('Using DeepSeek provider via v98store proxy');
+    return client;
   }
 
   /**
@@ -48,9 +73,11 @@ export class DeepSeekProvider implements IAIProvider {
   ): Promise<AIResponse> {
     let lastError: Error | unknown;
 
+    const client = await this.getClient();
+
     for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
       try {
-        const response = await this.client.chat.completions.create({
+        const response = await client.chat.completions.create({
           model: aiConfig.model, // DeepSeek model name
           messages: messages.map((m) => ({
             role: m.role as 'system' | 'user' | 'assistant',
@@ -103,11 +130,12 @@ export class DeepSeekProvider implements IAIProvider {
 
         if (!isRetryable || attempt >= this.maxRetries) {
           // Log full error details
+          const proxyConfig = await getProxyConfig();
           logger.error('DeepSeek API error:', {
             ...errorDetails,
             attempt: attempt + 1,
             model: aiConfig.model,
-            baseURL: config.proxy.apiBase,
+            baseURL: proxyConfig.apiBase,
           });
 
           // Build detailed error message

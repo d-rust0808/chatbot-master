@@ -57,11 +57,22 @@ export async function generateResponseHandler(
       });
     }
 
+    // Get IP and user agent for logging
+    const ipAddress =
+      request.ip ||
+      (request.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
+      undefined;
+    const userAgent = (request.headers['user-agent'] as string) || undefined;
+
     // Generate AI response
     const response = await aiService.generateResponse(
       validatedData.conversationId,
       validatedData.message,
-      conversation.chatbotId
+      conversation.chatbotId,
+      {
+        ipAddress,
+        userAgent,
+      }
     );
 
     return reply.status(200).send({

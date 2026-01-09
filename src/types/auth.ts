@@ -20,7 +20,15 @@ export interface JWTPayload {
 }
 
 // Extended FastifyRequest với user info
-export interface AuthenticatedRequest extends FastifyRequest {
+export interface AuthenticatedRequest<
+  TParams = unknown,
+  TBody = unknown,
+  TQuery = unknown
+> extends FastifyRequest<{
+  Params: TParams;
+  Body: TBody;
+  Querystring: TQuery;
+}> {
   user: JWTPayload;
 }
 

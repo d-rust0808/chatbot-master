@@ -24,6 +24,9 @@ import {
   calculateCreditsFromTokens,
 } from '../../utils/wallet/credit-pricing';
 import { InsufficientCreditsError } from '../../errors/wallet/credit.errors';
+import { aiRequestLogService } from './ai-request-log.service';
+import { getProxyConfig } from '../system-config/proxy-config.service';
+import { modelService } from './model.service';
 
 /**
  * AI Service
@@ -43,7 +46,11 @@ export class AIService {
   async generateResponse(
     conversationId: string,
     userMessage: string,
-    chatbotId: string
+    chatbotId: string,
+    loggingContext?: {
+      ipAddress?: string;
+      userAgent?: string;
+    }
   ): Promise<string> {
     try {
       // 1. Pre-processing: Detect intent
@@ -124,6 +131,7 @@ export class AIService {
       const provider = AIProviderFactory.create(providerType);
 
       // 9. Generate response với fallback
+      const startTime = Date.now();
       const response = await this.generateWithFallback(
         provider,
         messages,
@@ -133,7 +141,31 @@ export class AIService {
           maxTokens: chatbot.maxTokens,
           systemPrompt: chatbot.systemPrompt,
         },
-        chatbotId
+        chatbotId,
+        {
+          tenantId: tenant.tenantId,
+          conversationId,
+          chatbotId,
+          ipAddress: loggingContext?.ipAddress,
+          userAgent: loggingContext?.userAgent,
+        }
+      );
+      const responseTime = Date.now() - startTime;
+
+      // 9.1. Log AI request
+      await this.logAIRequest(
+        providerType,
+        chatbot.aiModel,
+        messages,
+        response,
+        responseTime,
+        {
+          tenantId: tenant.tenantId,
+          conversationId,
+          chatbotId,
+          ipAddress: loggingContext?.ipAddress,
+          userAgent: loggingContext?.userAgent,
+        }
       );
 
       // 10. Post-processing: Process response
@@ -213,11 +245,20 @@ export class AIService {
     provider: IAIProvider,
     messages: any[],
     config: any,
-    chatbotId: string
+    chatbotId: string,
+    loggingContext?: {
+      tenantId?: string;
+      conversationId?: string;
+      chatbotId?: string;
+      ipAddress?: string;
+      userAgent?: string;
+    }
   ): Promise<any> {
+    let lastError: Error | unknown;
     try {
       return await provider.generateResponse(messages, config);
     } catch (error) {
+      lastError = error;
       logger.warn('Primary AI provider failed, trying fallback:', {
         error: error instanceof Error ? error.message : error,
         chatbotId,
@@ -232,18 +273,107 @@ export class AIService {
             model: 'gpt-3.5-turbo',
           });
         } catch (fallbackError) {
+          lastError = fallbackError;
           logger.error('Fallback provider also failed:', fallbackError);
         }
       }
 
       // Last resort: return default message
       logger.error('All AI providers failed, returning default message');
-      return {
+      const errorResponse = {
         content:
           'Xin lỗi, tôi đang gặp sự cố kỹ thuật. Vui lòng thử lại sau.',
         tokens: undefined,
         model: config.model,
       };
+
+      // Log error
+      if (loggingContext) {
+        await this.logAIRequest(
+          'openai', // Fallback provider
+          config.model,
+          messages,
+          errorResponse,
+          0,
+          {
+            ...loggingContext,
+            error: lastError instanceof Error ? lastError.message : String(lastError),
+          }
+        ).catch((logError) => {
+          logger.error('Failed to log AI request error', logError);
+        });
+      }
+
+      return errorResponse;
+    }
+  }
+
+  /**
+   * Log AI request
+   * WHY: Track mọi AI API call để monitor usage và costs
+   */
+  private async logAIRequest(
+    provider: string,
+    model: string,
+    messages: any[],
+    response: any,
+    responseTime: number,
+    context: {
+      tenantId?: string;
+      conversationId?: string;
+      chatbotId?: string;
+      ipAddress?: string;
+      userAgent?: string;
+      error?: string;
+    }
+  ): Promise<void> {
+    try {
+      // Get model config để tính cost
+      const modelConfig = await modelService.getModelByName(model);
+
+      // Build request URL
+      const proxyConfig = await getProxyConfig();
+      const baseURL = proxyConfig.apiBase || 'https://api.openai.com';
+      const requestUrl = `${baseURL}/v1/chat/completions`;
+
+      // Build request body (simplified)
+      const requestBody = {
+        model,
+        messages: messages.map((m: any) => ({
+          role: m.role,
+          content: m.content?.substring(0, 1000), // Truncate for logging
+        })),
+      };
+
+      // Log request
+      await aiRequestLogService.logRequest({
+        tenantId: context.tenantId,
+        userId: undefined, // TODO: Get from context if available
+        conversationId: context.conversationId,
+        chatbotId: context.chatbotId,
+        provider,
+        model,
+        requestUrl,
+        requestMethod: 'POST',
+        requestBody,
+        statusCode: response.tokens ? 200 : 500,
+        responseTime,
+        tokens: response.tokens,
+        cost: response.tokens
+          ? calculateCost(response.tokens.total, model)
+          : undefined,
+        modelConfig: modelConfig || undefined,
+        ipAddress: context.ipAddress,
+        userAgent: context.userAgent,
+        error: context.error,
+      });
+    } catch (error) {
+      // Don't throw - logging failure shouldn't block response
+      logger.error('Failed to log AI request', {
+        error: error instanceof Error ? error.message : String(error),
+        provider,
+        model,
+      });
     }
   }
 

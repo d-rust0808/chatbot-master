@@ -19,7 +19,8 @@ export type SystemConfigCategory =
   | 'billing'
   | 'features'
   | 'maintenance'
-  | 'safeguards';
+  | 'safeguards'
+  | 'monitoring';
 
 /**
  * System Config Value Types
@@ -40,6 +41,28 @@ export interface SystemConfig {
   updatedBy: string | null;
   createdAt: Date;
   updatedAt: Date;
+}
+
+/**
+ * AI Model Definition (stored in System Config)
+ */
+export interface AIModelConfig {
+  name: string;
+  displayName: string;
+  description: string;
+  provider: 'openai' | 'gemini' | 'deepseek';
+  category: 'budget' | 'balanced' | 'premium';
+  recommended: boolean;
+  modelRatio: number;
+  outputRatio: number;
+  cacheRatio: number;
+  cacheCreationRatio: number;
+  groupRatio: number;
+  promptPrice: number; // $ per 1M tokens
+  completionPrice: number; // $ per 1M tokens
+  cachePrice: number; // $ per 1M tokens
+  cacheCreationPrice: number; // $ per 1M tokens
+  aliases?: string[];
 }
 
 /**
@@ -73,20 +96,41 @@ export const PLATFORM_CONFIG_KEYS = {
  * AI Config Keys
  */
 export const AI_CONFIG_KEYS = {
+  // API Keys
+  API_KEY_OPENAI: 'ai.api_keys.openai',
+  API_KEY_GEMINI: 'ai.api_keys.gemini',
+  API_KEY_DEEPSEEK: 'ai.api_keys.deepseek',
+  API_KEY_PROXY: 'ai.api_keys.proxy_api_key',
+  PROXY_API_BASE: 'ai.api_keys.proxy_api_base',
+  
+  // Models List
+  AI_MODELS_LIST: 'ai.models.list',
+  
   // Default Models
   DEFAULT_AI_MODEL: 'ai.default_model',
   DEFAULT_TEMPERATURE: 'ai.default_temperature',
   DEFAULT_MAX_TOKENS: 'ai.default_max_tokens',
   
-  // Provider Settings
+  // Provider Settings (old keys for backward compatibility)
   OPENAI_ENABLED: 'ai.providers.openai.enabled',
   GEMINI_ENABLED: 'ai.providers.gemini.enabled',
   DEEPSEEK_ENABLED: 'ai.providers.deepseek.enabled',
+  
+  // Model Settings (new keys matching doc)
+  MODEL_OPENAI_ENABLED: 'ai.models.openai.enabled',
+  MODEL_GEMINI_ENABLED: 'ai.models.gemini.enabled',
+  MODEL_DEEPSEEK_ENABLED: 'ai.models.deepseek.enabled',
+  MODEL_DEFAULT: 'ai.models.default',
   
   // Cost Settings
   OPENAI_COST_PER_1K_TOKENS: 'ai.costs.openai.per_1k_tokens',
   GEMINI_COST_PER_1K_TOKENS: 'ai.costs.gemini.per_1k_tokens',
   DEEPSEEK_COST_PER_1K_TOKENS: 'ai.costs.deepseek.per_1k_tokens',
+  
+  // Model Costs (new keys matching doc)
+  MODEL_OPENAI_COST_PER_1K_TOKENS: 'ai.models.openai.cost_per_1k_tokens',
+  MODEL_GEMINI_COST_PER_1K_TOKENS: 'ai.models.gemini.cost_per_1k_tokens',
+  MODEL_DEEPSEEK_COST_PER_1K_TOKENS: 'ai.models.deepseek.cost_per_1k_tokens',
   
   // Limits
   MAX_TOKENS_PER_REQUEST: 'ai.limits.max_tokens_per_request',
@@ -116,6 +160,17 @@ export const SECURITY_CONFIG_KEYS = {
   // IP Whitelist
   IP_WHITELIST_ENABLED: 'security.ip_whitelist.enabled',
   IP_WHITELIST: 'security.ip_whitelist.addresses',
+  
+  // IP Blacklist
+  IP_BLACKLIST_ENABLED: 'security.ip_blacklist.enabled',
+  IP_BLACKLIST: 'security.ip_blacklist.addresses',
+  
+  // Domain Blacklist
+  DOMAIN_BLACKLIST: 'security.domain_blacklist',
+  
+  // Banned IPs
+  BANNED_IPS: 'security.banned_ips',
+  BAN_DURATION_MINUTES: 'security.ban_duration_minutes',
 } as const;
 
 /**
@@ -129,6 +184,9 @@ export const BILLING_CONFIG_KEYS = {
   // Pricing
   CREDIT_PACKAGE_BASE_PRICE: 'billing.credit_package.base_price',
   CREDIT_PACKAGE_BONUS_RATE: 'billing.credit_package.bonus_rate',
+  
+  // Credit Packages
+  CREDIT_PACKAGES: 'billing.credit_packages',
   
   // Limits
   MIN_TOPUP_AMOUNT: 'billing.limits.min_topup_amount',
@@ -180,10 +238,18 @@ export const SAFEGUARDS_CONFIG_KEYS = {
 } as const;
 
 /**
+ * Monitoring Config Keys
+ */
+export const MONITORING_CONFIG_KEYS = {
+  AI_REQUEST_THRESHOLD_PER_MINUTE: 'monitoring.ai_request_threshold_per_minute',
+  SUSPICIOUS_IPS: 'monitoring.suspicious_ips',
+} as const;
+
+/**
  * Validation Schemas
  */
 export const createSystemConfigSchema = z.object({
-  category: z.enum(['platform', 'ai', 'security', 'billing', 'features', 'maintenance', 'safeguards']),
+  category: z.enum(['platform', 'ai', 'security', 'billing', 'features', 'maintenance', 'safeguards', 'monitoring']),
   key: z.string().min(1).max(255),
   value: z.unknown(), // JSON value
   type: z.enum(['string', 'number', 'boolean', 'object', 'array']),
@@ -198,7 +264,7 @@ export const updateSystemConfigSchema = z.object({
 });
 
 export const listSystemConfigsSchema = z.object({
-  category: z.enum(['platform', 'ai', 'security', 'billing', 'features', 'maintenance', 'safeguards']).optional(),
+  category: z.enum(['platform', 'ai', 'security', 'billing', 'features', 'maintenance', 'safeguards', 'monitoring']).optional(),
   page: z.string().optional().transform((val) => (val ? parseInt(val, 10) : 1)),
   limit: z.string().optional().transform((val) => (val ? parseInt(val, 10) : 50)),
   search: z.string().optional(),
@@ -260,6 +326,247 @@ export const DEFAULT_SYSTEM_CONFIGS: Array<{
     isEditable: true,
   },
   
+  // AI - API Keys
+  {
+    category: 'ai',
+    key: AI_CONFIG_KEYS.API_KEY_OPENAI,
+    value: '',
+    type: 'string',
+    description: 'OpenAI API Key',
+    isEditable: true,
+  },
+  {
+    category: 'ai',
+    key: AI_CONFIG_KEYS.API_KEY_GEMINI,
+    value: '',
+    type: 'string',
+    description: 'Google Gemini API Key',
+    isEditable: true,
+  },
+  {
+    category: 'ai',
+    key: AI_CONFIG_KEYS.API_KEY_DEEPSEEK,
+    value: '',
+    type: 'string',
+    description: 'DeepSeek API Key',
+    isEditable: true,
+  },
+  {
+    category: 'ai',
+    key: AI_CONFIG_KEYS.API_KEY_PROXY,
+    value: '',
+    type: 'string',
+    description: 'Proxy API Key (v98store)',
+    isEditable: true,
+  },
+  {
+    category: 'ai',
+    key: AI_CONFIG_KEYS.PROXY_API_BASE,
+    value: 'https://v98store.com/v1',
+    type: 'string',
+    description: 'Proxy API Base URL (v98store)',
+    isEditable: true,
+  },
+  
+  // AI - Models List
+  {
+    category: 'ai',
+    key: AI_CONFIG_KEYS.AI_MODELS_LIST,
+    value: [
+      {
+        name: 'gpt-4o-mini',
+        displayName: 'GPT-4o Mini',
+        description: 'Rẻ nhất, phù hợp cho chatbot cơ bản',
+        provider: 'openai',
+        category: 'budget',
+        recommended: true,
+        modelRatio: 0.075,
+        outputRatio: 4,
+        cacheRatio: 0.5,
+        cacheCreationRatio: 1,
+        groupRatio: 1,
+        promptPrice: 0.15,
+        completionPrice: 0.6,
+        cachePrice: 0.075,
+        cacheCreationPrice: 0.15,
+      },
+      {
+        name: 'gpt-4o',
+        displayName: 'GPT-4o',
+        description: 'Cân bằng giữa chất lượng và giá',
+        provider: 'openai',
+        category: 'balanced',
+        recommended: true,
+        modelRatio: 1.25,
+        outputRatio: 4,
+        cacheRatio: 0.5,
+        cacheCreationRatio: 1,
+        groupRatio: 1,
+        promptPrice: 2.5,
+        completionPrice: 10,
+        cachePrice: 1.25,
+        cacheCreationPrice: 2.5,
+      },
+      {
+        name: 'gpt-4.1-2025-04-14',
+        displayName: 'GPT-4.1',
+        description: 'Phiên bản mới nhất, chất lượng cao',
+        provider: 'openai',
+        category: 'premium',
+        recommended: false,
+        aliases: ['gpt-4.1', '4.1'],
+        modelRatio: 1,
+        outputRatio: 4,
+        cacheRatio: 0.25,
+        cacheCreationRatio: 1,
+        groupRatio: 1,
+        promptPrice: 2,
+        completionPrice: 8,
+        cachePrice: 0.5,
+        cacheCreationPrice: 2,
+      },
+      {
+        name: 'gpt-4',
+        displayName: 'GPT-4',
+        description: 'Model cổ điển, chất lượng tốt',
+        provider: 'openai',
+        category: 'premium',
+        recommended: false,
+        modelRatio: 15,
+        outputRatio: 2,
+        cacheRatio: 0.5,
+        cacheCreationRatio: 1,
+        groupRatio: 1,
+        promptPrice: 30,
+        completionPrice: 60,
+        cachePrice: 15,
+        cacheCreationPrice: 30,
+      },
+      {
+        name: 'gemini-2.5-flash',
+        displayName: 'Gemini 2.5 Flash',
+        description: 'Nhanh, rẻ, phù hợp chatbot',
+        provider: 'gemini',
+        category: 'budget',
+        recommended: true,
+        modelRatio: 0.15,
+        outputRatio: 8.34,
+        cacheRatio: 1,
+        cacheCreationRatio: 1,
+        groupRatio: 1,
+        promptPrice: 0.3,
+        completionPrice: 2.502,
+        cachePrice: 0.3,
+        cacheCreationPrice: 0.3,
+      },
+      {
+        name: 'gemini-3-flash-preview',
+        displayName: 'Gemini 3 Flash Preview',
+        description: 'Phiên bản preview mới nhất, nhanh',
+        provider: 'gemini',
+        category: 'budget',
+        recommended: false,
+        modelRatio: 0.25,
+        outputRatio: 6,
+        cacheRatio: 1,
+        cacheCreationRatio: 1,
+        groupRatio: 1,
+        promptPrice: 0.5,
+        completionPrice: 3,
+        cachePrice: 0.5,
+        cacheCreationPrice: 0.5,
+      },
+      {
+        name: 'deepseek-chat',
+        displayName: 'DeepSeek Chat',
+        description: 'Rất rẻ, chất lượng tốt',
+        provider: 'deepseek',
+        category: 'budget',
+        recommended: true,
+        modelRatio: 1,
+        outputRatio: 4,
+        cacheRatio: 0.25,
+        cacheCreationRatio: 1,
+        groupRatio: 1,
+        promptPrice: 2,
+        completionPrice: 8,
+        cachePrice: 0.5,
+        cacheCreationPrice: 2,
+      },
+      {
+        name: 'deepseek-v3',
+        displayName: 'DeepSeek V3',
+        description: 'Phiên bản V3, chất lượng tốt hơn',
+        provider: 'deepseek',
+        category: 'balanced',
+        recommended: false,
+        modelRatio: 1,
+        outputRatio: 4,
+        cacheRatio: 1,
+        cacheCreationRatio: 1,
+        groupRatio: 1,
+        promptPrice: 2,
+        completionPrice: 8,
+        cachePrice: 2,
+        cacheCreationPrice: 2,
+      },
+      {
+        name: 'deepseek-v3.1',
+        displayName: 'DeepSeek V3.1',
+        description: 'Phiên bản V3.1, cải tiến từ V3',
+        provider: 'deepseek',
+        category: 'balanced',
+        recommended: false,
+        modelRatio: 2,
+        outputRatio: 3,
+        cacheRatio: 1,
+        cacheCreationRatio: 1,
+        groupRatio: 1,
+        promptPrice: 4,
+        completionPrice: 12,
+        cachePrice: 4,
+        cacheCreationPrice: 4,
+      },
+      {
+        name: 'deepseek-v3.2',
+        displayName: 'DeepSeek V3.2',
+        description: 'Phiên bản V3.2 mới nhất',
+        provider: 'deepseek',
+        category: 'balanced',
+        recommended: false,
+        modelRatio: 1,
+        outputRatio: 1.5,
+        cacheRatio: 1,
+        cacheCreationRatio: 1,
+        groupRatio: 1,
+        promptPrice: 2,
+        completionPrice: 3,
+        cachePrice: 2,
+        cacheCreationPrice: 2,
+      },
+      {
+        name: 'deepseek-r1',
+        displayName: 'DeepSeek R1',
+        description: 'Model reasoning, phù hợp logic phức tạp',
+        provider: 'deepseek',
+        category: 'premium',
+        recommended: false,
+        modelRatio: 2,
+        outputRatio: 4,
+        cacheRatio: 1,
+        cacheCreationRatio: 1,
+        groupRatio: 1,
+        promptPrice: 4,
+        completionPrice: 16,
+        cachePrice: 4,
+        cacheCreationPrice: 4,
+      },
+    ],
+    type: 'array',
+    description: 'Danh sách AI models với pricing info (có thể thêm/sửa/xóa qua API)',
+    isEditable: true,
+  },
+  
   // AI - Defaults
   {
     category: 'ai',
@@ -267,6 +574,14 @@ export const DEFAULT_SYSTEM_CONFIGS: Array<{
     value: 'gpt-3.5-turbo',
     type: 'string',
     description: 'Default AI model for new chatbots',
+    isEditable: true,
+  },
+  {
+    category: 'ai',
+    key: AI_CONFIG_KEYS.MODEL_DEFAULT,
+    value: 'gpt-3.5-turbo',
+    type: 'string',
+    description: 'Default AI model',
     isEditable: true,
   },
   {
@@ -286,7 +601,7 @@ export const DEFAULT_SYSTEM_CONFIGS: Array<{
     isEditable: true,
   },
   
-  // AI - Provider Settings
+  // AI - Provider Settings (old keys for backward compatibility)
   {
     category: 'ai',
     key: AI_CONFIG_KEYS.OPENAI_ENABLED,
@@ -312,7 +627,33 @@ export const DEFAULT_SYSTEM_CONFIGS: Array<{
     isEditable: true,
   },
   
-  // AI - Costs (per 1k tokens)
+  // AI - Model Settings (new keys matching doc)
+  {
+    category: 'ai',
+    key: AI_CONFIG_KEYS.MODEL_OPENAI_ENABLED,
+    value: true,
+    type: 'boolean',
+    description: 'Bật/tắt OpenAI model',
+    isEditable: true,
+  },
+  {
+    category: 'ai',
+    key: AI_CONFIG_KEYS.MODEL_GEMINI_ENABLED,
+    value: true,
+    type: 'boolean',
+    description: 'Bật/tắt Gemini model',
+    isEditable: true,
+  },
+  {
+    category: 'ai',
+    key: AI_CONFIG_KEYS.MODEL_DEEPSEEK_ENABLED,
+    value: true,
+    type: 'boolean',
+    description: 'Bật/tắt DeepSeek model',
+    isEditable: true,
+  },
+  
+  // AI - Costs (per 1k tokens) - old keys
   {
     category: 'ai',
     key: AI_CONFIG_KEYS.OPENAI_COST_PER_1K_TOKENS,
@@ -335,6 +676,32 @@ export const DEFAULT_SYSTEM_CONFIGS: Array<{
     value: 0.0007,
     type: 'number',
     description: 'DeepSeek cost per 1k tokens (USD)',
+    isEditable: true,
+  },
+  
+  // AI - Model Costs (new keys matching doc)
+  {
+    category: 'ai',
+    key: AI_CONFIG_KEYS.MODEL_OPENAI_COST_PER_1K_TOKENS,
+    value: 0.002,
+    type: 'number',
+    description: 'Giá OpenAI (USD/1k tokens)',
+    isEditable: true,
+  },
+  {
+    category: 'ai',
+    key: AI_CONFIG_KEYS.MODEL_GEMINI_COST_PER_1K_TOKENS,
+    value: 0.001,
+    type: 'number',
+    description: 'Giá Gemini (USD/1k tokens)',
+    isEditable: true,
+  },
+  {
+    category: 'ai',
+    key: AI_CONFIG_KEYS.MODEL_DEEPSEEK_COST_PER_1K_TOKENS,
+    value: 0.0007,
+    type: 'number',
+    description: 'Giá DeepSeek (USD/1k tokens)',
     isEditable: true,
   },
   
@@ -457,6 +824,16 @@ export const DEFAULT_SYSTEM_CONFIGS: Array<{
     value: 0.001,
     type: 'number',
     description: 'VND to Credit conversion rate (1 VND = X credit)',
+    isEditable: true,
+  },
+  
+  // Billing - Credit Packages
+  {
+    category: 'billing',
+    key: BILLING_CONFIG_KEYS.CREDIT_PACKAGES,
+    value: [],
+    type: 'array',
+    description: 'Danh sách các gói credit AI',
     isEditable: true,
   },
   
@@ -603,6 +980,24 @@ export const DEFAULT_SYSTEM_CONFIGS: Array<{
     value: 60,
     type: 'number',
     description: 'Abuse block duration in minutes',
+    isEditable: true,
+  },
+  
+  // Monitoring - AI Request Monitoring
+  {
+    category: 'monitoring',
+    key: MONITORING_CONFIG_KEYS.AI_REQUEST_THRESHOLD_PER_MINUTE,
+    value: 100,
+    type: 'number',
+    description: 'Ngưỡng cảnh báo requests/phút',
+    isEditable: true,
+  },
+  {
+    category: 'monitoring',
+    key: MONITORING_CONFIG_KEYS.SUSPICIOUS_IPS,
+    value: [],
+    type: 'array',
+    description: 'Danh sách IP đang nghi ngờ (gọi AI liên tục)',
     isEditable: true,
   },
 ];

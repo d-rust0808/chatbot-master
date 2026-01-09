@@ -9,6 +9,8 @@
 
 import axios from 'axios';
 import { logger } from '../../infrastructure/logger';
+import { systemConfigService } from '../system-config/system-config.service';
+import { AI_CONFIG_KEYS, type AIModelConfig } from '../../types/system-config';
 
 interface V98Model {
   name: string;
@@ -38,8 +40,8 @@ export interface RecommendedModel {
 }
 
 /**
- * Recommended models cho chatbot
- * WHY: Chỉ lựa models từ OpenAI, Gemini, DeepSeek
+ * Recommended models cho chatbot (DEPRECATED - use System Config instead)
+ * WHY: Fallback nếu System Config chưa có models
  * - Giá thành tốt
  * - Chất lượng ổn định
  * - Phù hợp cho chatbot
@@ -150,6 +152,67 @@ export class ModelService {
   private cachedModels: V98Model[] | null = null;
   private cacheExpiry: number = 0;
   private readonly cacheTTL = 5 * 60 * 1000; // 5 minutes
+  private cachedConfigModels: AIModelConfig[] | null = null;
+  private configModelsCacheExpiry: number = 0;
+  private readonly configModelsCacheTTL = 1 * 60 * 1000; // 1 minute
+
+  /**
+   * Get models từ System Config
+   * WHY: Đọc models từ System Config thay vì hardcode
+   */
+  async getConfigModels(): Promise<AIModelConfig[]> {
+    // Check cache
+    if (this.cachedConfigModels && Date.now() < this.configModelsCacheExpiry) {
+      return this.cachedConfigModels;
+    }
+
+    try {
+      const config = await systemConfigService.getConfig('ai', AI_CONFIG_KEYS.AI_MODELS_LIST);
+      
+      if (config && Array.isArray(config.value)) {
+        const models = config.value as AIModelConfig[];
+        this.cachedConfigModels = models;
+        this.configModelsCacheExpiry = Date.now() + this.configModelsCacheTTL;
+        return models;
+      }
+      
+      // Fallback to hardcoded models nếu chưa có trong System Config
+      logger.warn('No models found in System Config, using fallback');
+      return this.getFallbackModels();
+    } catch (error) {
+      logger.error('Failed to get models from System Config', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return this.getFallbackModels();
+    }
+  }
+
+  /**
+   * Get fallback models (from hardcoded RECOMMENDED_MODELS)
+   */
+  private getFallbackModels(): AIModelConfig[] {
+    // Convert RECOMMENDED_MODELS to AIModelConfig format
+    // Note: Fallback models không có pricing info đầy đủ
+    return RECOMMENDED_MODELS.map((model) => ({
+      name: model.name,
+      displayName: model.displayName,
+      description: model.description,
+      provider: model.provider,
+      category: model.category,
+      recommended: model.recommended,
+      aliases: model.aliases,
+      // Default pricing (sẽ được update từ System Config)
+      modelRatio: 1,
+      outputRatio: 4,
+      cacheRatio: 1,
+      cacheCreationRatio: 1,
+      groupRatio: 1,
+      promptPrice: 0,
+      completionPrice: 0,
+      cachePrice: 0,
+      cacheCreationPrice: 0,
+    }));
+  }
 
   /**
    * Get available models từ v98store
@@ -225,13 +288,21 @@ export class ModelService {
       availableModels.map((m) => m.name.trim())
     );
 
-    return RECOMMENDED_MODELS.map((model) => {
+    // Get models from System Config
+    const configModels = await this.getConfigModels();
+
+    return configModels.map((model) => {
       const availableModel = availableModels.find(
         (m) => m.name.trim() === model.name
       );
 
       return {
-        ...model,
+        name: model.name,
+        displayName: model.displayName,
+        description: model.description,
+        provider: model.provider,
+        category: model.category,
+        recommended: model.recommended,
         available: availableModelNames.has(model.name),
         uptime: availableModel?.uptime,
       };
@@ -263,9 +334,11 @@ export class ModelService {
    * @param input - Model name, alias, hoặc display name
    * @returns Actual model name hoặc null nếu không tìm thấy
    */
-  resolveModelName(input: string): string | null {
+  async resolveModelName(input: string): Promise<string | null> {
+    const configModels = await this.getConfigModels();
+    
     // Check exact match first
-    const exactMatch = RECOMMENDED_MODELS.find(
+    const exactMatch = configModels.find(
       (m) => m.name === input || m.displayName === input
     );
     if (exactMatch) {
@@ -273,7 +346,7 @@ export class ModelService {
     }
 
     // Check aliases (case-insensitive)
-    const aliasMatch = RECOMMENDED_MODELS.find((m) =>
+    const aliasMatch = configModels.find((m) =>
       m.aliases?.some((alias) => alias.toLowerCase() === input.toLowerCase())
     );
     if (aliasMatch) {
@@ -281,7 +354,7 @@ export class ModelService {
     }
 
     // Check partial match với display name
-    const displayMatch = RECOMMENDED_MODELS.find((m) =>
+    const displayMatch = configModels.find((m) =>
       m.displayName.toLowerCase().includes(input.toLowerCase()) ||
       input.toLowerCase().includes(m.displayName.toLowerCase())
     );
@@ -298,13 +371,14 @@ export class ModelService {
    * @param input - Model name, alias, hoặc display name
    * @returns Model definition hoặc null
    */
-  getModelByName(input: string): RecommendedModel | null {
-    const resolvedName = this.resolveModelName(input);
+  async getModelByName(input: string): Promise<AIModelConfig | null> {
+    const resolvedName = await this.resolveModelName(input);
     if (!resolvedName) {
       return null;
     }
 
-    return RECOMMENDED_MODELS.find((m) => m.name === resolvedName) || null;
+    const configModels = await this.getConfigModels();
+    return configModels.find((m) => m.name === resolvedName) || null;
   }
 }
 
