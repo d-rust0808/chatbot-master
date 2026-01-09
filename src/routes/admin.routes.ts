@@ -44,6 +44,7 @@ import {
   listAILogsHandler,
   getSuspiciousIPsHandler,
 } from '../controllers/admin/ai-log.controller';
+import { checkBalanceHandler } from '../controllers/ai/ai.controller';
 // Use existing admin controller with image upload support
 import {
   createServicePackageHandler,
@@ -218,6 +219,10 @@ export async function adminRoutes(fastify: FastifyInstance) {
   fastify.post('/ai-models', createAIModelHandler);
   fastify.patch('/ai-models/:name', updateAIModelHandler);
   fastify.delete('/ai-models/:name', deleteAIModelHandler);
+
+  // AI Balance (sp-admin only)
+  // WHY: SP-Admin xem proxy balance từ v98store
+  fastify.get('/ai/balance', checkBalanceHandler);
 
   // AI Logs management (sp-admin only)
   // WHY: SP-Admin xem AI request logs và monitor suspicious IPs

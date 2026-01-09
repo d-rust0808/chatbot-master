@@ -105,6 +105,7 @@ export async function generateResponseHandler(
 
 /**
  * Check proxy balance
+ * WHY: SP-Admin xem balance từ v98store proxy
  */
 export async function checkBalanceHandler(
   _request: FastifyRequest,
@@ -113,9 +114,13 @@ export async function checkBalanceHandler(
   try {
     const balance = await proxyBalanceService.checkBalance();
 
+    // Return format matching v98store API response
     return reply.status(200).send({
       success: true,
-      data: balance,
+      data: {
+        remain_quota: balance.remaining,
+        used_quota: balance.used,
+      },
     });
   } catch (error) {
     logger.error('Check balance error:', error);
