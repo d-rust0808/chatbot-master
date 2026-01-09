@@ -78,6 +78,14 @@ const envSchema = z.object({
   SEPAY_TEMPLATE: z.string().default('compact'), // Template QR Code (compact, standard)
   SEPAY_WEBHOOK_SECRET: z.string().optional(), // Secret để verify webhook
   SEPAY_API_URL: z.string().url().optional(), // Sepay API URL (nếu có)
+  
+  // Cloudflare R2 Storage
+  R2_ACCOUNT_ID: z.string().optional(),
+  R2_ACCESS_KEY_ID: z.string().optional(),
+  R2_SECRET_ACCESS_KEY: z.string().optional(),
+  R2_BUCKET_NAME: z.string().optional(),
+  R2_PUBLIC_URL: z.string().url().optional(), // Public URL của R2 bucket
+  R2_ENDPOINT: z.string().url().optional(), // S3 API endpoint
 });
 
 /**
@@ -222,6 +230,16 @@ export const config = {
     template: env.SEPAY_TEMPLATE || 'compact',
     webhookSecret: env.SEPAY_WEBHOOK_SECRET || '',
     apiUrl: env.SEPAY_API_URL || '',
+  },
+  
+  r2: {
+    accountId: env.R2_ACCOUNT_ID || '',
+    accessKeyId: env.R2_ACCESS_KEY_ID || '',
+    secretAccessKey: env.R2_SECRET_ACCESS_KEY || '',
+    bucketName: env.R2_BUCKET_NAME || '',
+    publicUrl: env.R2_PUBLIC_URL || '',
+    endpoint: env.R2_ENDPOINT || '',
+    enabled: !!(env.R2_ACCOUNT_ID && env.R2_ACCESS_KEY_ID && env.R2_SECRET_ACCESS_KEY && env.R2_BUCKET_NAME),
   },
 } as const;
 

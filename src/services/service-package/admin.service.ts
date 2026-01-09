@@ -10,10 +10,12 @@
 import { prisma } from '../../infrastructure/database';
 import { logger } from '../../infrastructure/logger';
 import { CreditOperationError } from '../../errors/wallet/credit.errors';
+import { config } from '../../infrastructure/config';
+import { uploadToR2 } from '../../infrastructure/r2-storage';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
-// Upload directory
+// Upload directory (fallback if R2 not enabled)
 const UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads', 'service-packages');
 
 // Ensure upload directory exists
@@ -27,13 +29,11 @@ async function ensureUploadDir() {
 
 /**
  * Save uploaded image
- * WHY: Save image file và return URL
+ * WHY: Save image file to R2 (if enabled) or local storage và return URL
  */
 export async function saveServicePackageImage(
   file: { filename: string; mimetype: string; buffer: Buffer }
 ): Promise<string> {
-  await ensureUploadDir();
-
   // Validate image type
   const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
   if (!allowedTypes.includes(file.mimetype)) {
@@ -44,14 +44,51 @@ export async function saveServicePackageImage(
 
   // Generate unique filename
   const ext = path.extname(file.filename) || '.jpg';
-  const uniqueFilename = `${Date.now()}-${Math.random().toString(36).substring(7)}${ext}`;
-  const filePath = path.join(UPLOAD_DIR, uniqueFilename);
+  const uniqueFilename = `service-packages/${Date.now()}-${Math.random().toString(36).substring(7)}${ext}`;
 
-  // Save file
+  // Upload to R2 if enabled
+  if (config.r2.enabled) {
+    try {
+      logger.info('Uploading service package image to R2', {
+        filename: file.filename,
+        key: uniqueFilename,
+      });
+
+      const publicUrl = await uploadToR2(
+        {
+          buffer: file.buffer,
+          mimetype: file.mimetype,
+          filename: file.filename,
+        },
+        uniqueFilename
+      );
+
+      logger.info('Service package image uploaded to R2', {
+        publicUrl,
+      });
+
+      return publicUrl;
+    } catch (error) {
+      logger.error('Failed to upload to R2, falling back to local storage', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      // Fall through to local storage
+    }
+  }
+
+  // Fallback to local storage
+  await ensureUploadDir();
+  const filePath = path.join(UPLOAD_DIR, path.basename(uniqueFilename));
+
+  // Save file locally
   await fs.writeFile(filePath, file.buffer);
 
+  logger.info('Service package image saved locally', {
+    filePath,
+  });
+
   // Return URL path (relative to public)
-  return `/uploads/service-packages/${uniqueFilename}`;
+  return `/uploads/service-packages/${path.basename(uniqueFilename)}`;
 }
 
 /**
