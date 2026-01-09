@@ -83,25 +83,73 @@ export async function createServicePackageHandler(
         });
       }
 
-      const parts = request.parts();
+      logger.info('Starting multipart parsing', {
+        contentType: request.headers['content-type'],
+        contentLength: request.headers['content-length'],
+      });
+
+      // WHY: Parse multipart với timeout và error handling tốt hơn
+      const parseTimeout = 30000; // 30 seconds
+      let parseStartTime = Date.now();
       
-      for await (const part of parts) {
-        const multipartPart = part as MultipartPart;
+      try {
+        const parts = request.parts();
+        let partCount = 0;
         
-        if (multipartPart.type === 'file') {
-          imageFile = multipartPart;
-          logger.debug('Image file received', {
-            filename: multipartPart.filename,
-            mimetype: multipartPart.mimetype,
-            encoding: multipartPart.encoding,
-          });
-        } else {
-          formData[multipartPart.fieldname] = multipartPart.value;
-          logger.debug('Form field received', {
+        logger.info('Got parts iterator, starting to consume', {
+          hasParts: !!parts,
+        });
+        
+        for await (const part of parts) {
+          partCount++;
+          const elapsed = Date.now() - parseStartTime;
+          
+          // Check timeout trong loop
+          if (elapsed > parseTimeout) {
+            throw new Error(`Multipart parsing timeout after ${elapsed}ms`);
+          }
+          
+          const multipartPart = part as MultipartPart;
+          
+          logger.info('Processing multipart part', {
+            partNumber: partCount,
+            elapsed: `${elapsed}ms`,
+            type: multipartPart.type,
             fieldname: multipartPart.fieldname,
-            value: typeof multipartPart.value === 'string' ? multipartPart.value.substring(0, 100) : multipartPart.value,
+            filename: multipartPart.filename,
           });
+          
+          if (multipartPart.type === 'file') {
+            imageFile = multipartPart;
+            logger.info('Image file received', {
+              filename: multipartPart.filename,
+              mimetype: multipartPart.mimetype,
+              encoding: multipartPart.encoding,
+            });
+          } else {
+            formData[multipartPart.fieldname] = multipartPart.value;
+            logger.info('Form field received', {
+              fieldname: multipartPart.fieldname,
+              value: typeof multipartPart.value === 'string' ? multipartPart.value.substring(0, 100) : multipartPart.value,
+            });
+          }
         }
+        
+        const totalElapsed = Date.now() - parseStartTime;
+        logger.info('Multipart parsing completed', {
+          totalParts: partCount,
+          formFieldsCount: Object.keys(formData).length,
+          hasImage: !!imageFile,
+          elapsed: `${totalElapsed}ms`,
+        });
+      } catch (parseError) {
+        const elapsed = Date.now() - parseStartTime;
+        logger.error('Error during multipart parsing', {
+          error: parseError instanceof Error ? parseError.message : String(parseError),
+          stack: parseError instanceof Error ? parseError.stack : undefined,
+          elapsed: `${elapsed}ms`,
+        });
+        throw parseError;
       }
     } catch (multipartError) {
       logger.error('Multipart parsing error:', {

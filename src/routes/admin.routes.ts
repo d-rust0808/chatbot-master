@@ -45,12 +45,21 @@ export async function adminRoutes(fastify: FastifyInstance) {
   logger.info('Admin routes plugin initialized');
   
   // Register multipart for file uploads
+  // WHY: Config multipart với các options để tránh hang
   await fastify.register(multipart, {
     limits: {
       fileSize: 5 * 1024 * 1024, // 5MB max
+      files: 1, // Max 1 file
+      fields: 10, // Max 10 fields
     },
+    attachFieldsToBody: false, // Don't auto-attach, we'll parse manually
+    sharedSchemaId: 'MultipartFileType', // Shared schema
   });
-  logger.info('Multipart plugin registered');
+  logger.info('Multipart plugin registered', {
+    maxFileSize: '5MB',
+    maxFiles: 1,
+    maxFields: 10,
+  });
 
   // Create admin endpoint (public, for first-time setup)
   fastify.post('/create-admin', createAdminHandler);
