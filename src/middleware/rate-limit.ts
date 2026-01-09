@@ -99,12 +99,18 @@ export async function rateLimitMiddleware(
     ];
     
     // SP-admin routes that don't have tenant context
-    const adminRoutes = [
+    const spAdminRoutes = [
       '/api/v1/sp-admin',
     ];
     
-    const isPublicRoute = publicRoutes.some(route => request.url.startsWith(route));
-    const isAdminRoute = adminRoutes.some(route => request.url.startsWith(route));
+    // Tenant admin routes
+    const adminRoutes = [
+      '/api/v1/admin',
+    ];
+    
+    const isPublicRoute = publicRoutes.some((route: string) => request.url.startsWith(route));
+    const isSpAdminRoute = spAdminRoutes.some((route: string) => request.url.startsWith(route));
+    const isAdminRoute = adminRoutes.some((route: string) => request.url.startsWith(route));
     
     const config = getRateLimitConfig(request.url);
     
@@ -112,13 +118,16 @@ export async function rateLimitMiddleware(
     const tenantRequest = request as TenantRequest;
     const hasTenantContext = !!tenantRequest.tenant;
     
-    // For public routes or routes without tenant context (SP-admin), use IP-based rate limiting
+    // For public routes or routes without tenant context (SP-admin, admin), use IP-based rate limiting
     let rateLimitKey: string;
-    if (isPublicRoute || isAdminRoute || !hasTenantContext) {
+    if (isPublicRoute || isSpAdminRoute || isAdminRoute || !hasTenantContext) {
       // Use IP address for public/admin routes or routes without tenant context
       const clientIp = request.ip || request.headers['x-forwarded-for'] || 'unknown';
       const window = Math.floor(Date.now() / config.windowMs);
-      rateLimitKey = `rate_limit:${isAdminRoute ? 'admin' : 'public'}:${clientIp}:${request.url}:${window}`;
+      let routeType = 'public';
+      if (isSpAdminRoute) routeType = 'sp-admin';
+      else if (isAdminRoute) routeType = 'admin';
+      rateLimitKey = `rate_limit:${routeType}:${clientIp}:${request.url}:${window}`;
     } else {
       // Use tenant-based rate limiting for tenant-scoped routes
       const tenant = tenantRequest.tenant!;

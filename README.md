@@ -4,6 +4,26 @@ Hệ thống Chatbot SaaS đa nền tảng sử dụng AI Model + Database, tri�
 
 ## 📚 Tài Liệu Dự Án
 
+### 0. [API Routes Migration Guide](./docs/API_ROUTES_MIGRATION.md) ⚠️ **QUAN TRỌNG**
+**Hướng dẫn migration API routes cho Frontend:**
+- Mapping tất cả routes cũ → mới
+- Phân loại routes theo role (sp-admin, admin, public)
+- Checklist migration cho frontend developers
+- Chi tiết thay đổi và breaking changes
+
+### 0.1. [Admin Balance Logs API](./docs/API_ADMIN_BALANCE_LOGS.md) 📊
+**Tài liệu API Balance Logs:**
+- `GET /sp-admin/users/:adminId/balance-logs` - Xem logs của 1 admin
+- `GET /sp-admin/balance-logs` - Xem logs của tất cả admins
+- Request/Response examples
+- Frontend implementation guide
+- Use cases và testing
+**Hướng dẫn migration API routes cho Frontend:**
+- Mapping tất cả routes cũ → mới
+- Phân loại routes theo role (sp-admin, admin, public)
+- Checklist migration cho frontend developers
+- Chi tiết thay đổi và breaking changes
+
 ### 1. [plan/PROJECT_PLAN.md](./plan/PROJECT_PLAN.md)
 **Kế hoạch dự án chi tiết** với đầy đủ:
 - Tổng quan dự án (mục tiêu, đối tượng, USP, rủi ro)

@@ -15,6 +15,7 @@ import { logger } from '../../infrastructure/logger';
 import bcrypt from 'bcrypt';
 import { creditService } from '../../services/wallet/credit.service';
 import { vndWalletService } from '../../services/wallet/vnd-wallet.service';
+import type { AuthenticatedRequest } from '../../types/auth';
 
 // Validation schemas
 const listUsersSchema = z.object({
@@ -71,6 +72,15 @@ const getAdminBalanceLogsSchema = z.object({
   startDate: z.string().optional().transform((val) => (val ? new Date(val) : undefined)),
   endDate: z.string().optional().transform((val) => (val ? new Date(val) : undefined)),
   type: z.enum(['vnd', 'credit', 'all']).optional().default('all'),
+});
+
+const getAllAdminBalanceLogsSchema = z.object({
+  page: z.string().optional().transform((val) => (val ? parseInt(val, 10) : 1)),
+  limit: z.string().optional().transform((val) => (val ? parseInt(val, 10) : 50)),
+  startDate: z.string().optional().transform((val) => (val ? new Date(val) : undefined)),
+  endDate: z.string().optional().transform((val) => (val ? new Date(val) : undefined)),
+  type: z.enum(['vnd', 'credit', 'all']).optional().default('all'),
+  adminId: z.string().optional(), // Optional filter by adminId
 });
 
 /**
@@ -1414,8 +1424,19 @@ export async function topUpUserBalanceHandler(
   reply: FastifyReply
 ) {
   try {
-    const { userId } = request.params;
+    const authRequest = request as AuthenticatedRequest;
+    const adminId = authRequest.user?.userId; // Admin thực hiện top-up
+    const { userId } = request.params; // User được top-up
     const body = topUpUserBalanceSchema.parse(request.body);
+    
+    if (!adminId) {
+      return reply.status(401).send({
+        error: {
+          message: 'Unauthorized',
+          statusCode: 401,
+        },
+      });
+    }
 
     // Validate: phải có ít nhất một loại tiền để nạp
     if (!body.vndAmount && !body.creditAmount) {
@@ -1473,8 +1494,9 @@ export async function topUpUserBalanceHandler(
         body.reason || 'Manual top-up by admin',
         undefined,
         {
-          adminUserId: userId,
+          adminUserId: adminId, // Fix: Lưu adminId của người thực hiện top-up
           adminAction: true,
+          targetUserId: userId, // Lưu thêm userId của user được top-up để reference
         }
       );
     }
@@ -1487,8 +1509,9 @@ export async function topUpUserBalanceHandler(
         body.reason || 'Manual top-up by admin',
         undefined,
         {
-          adminUserId: userId,
+          adminUserId: adminId, // Fix: Lưu adminId của người thực hiện top-up
           adminAction: true,
+          targetUserId: userId, // Lưu thêm userId của user được top-up để reference
         }
       );
     }
@@ -1580,6 +1603,18 @@ export async function getAdminBalanceLogsHandler(
     const limit = Math.min(validated.limit || 50, 100);
     const skip = (page - 1) * limit;
 
+    // Get all tenants where admin is owner (để hiển thị payments từ shop của admin)
+    const adminTenants = await prisma.tenantUser.findMany({
+      where: {
+        userId: adminId,
+        role: 'owner',
+      },
+      select: {
+        tenantId: true,
+      },
+    });
+    const adminTenantIds = adminTenants.map((tu) => tu.tenantId);
+
     // Build date filter
     const dateFilter: any = {};
     if (validated.startDate || validated.endDate) {
@@ -1618,10 +1653,35 @@ export async function getAdminBalanceLogsHandler(
               orderBy: { createdAt: 'desc' },
             });
 
-            // Filter by metadata.adminUserId in memory (Prisma JSON filter is complex)
+            // Get all tenants where admin is owner
+            const adminTenants = await prisma.tenantUser.findMany({
+              where: {
+                userId: adminId,
+                role: 'owner',
+              },
+              select: {
+                tenantId: true,
+              },
+            });
+            const adminTenantIds = adminTenants.map((tu) => tu.tenantId);
+
+            // Filter transactions:
+            // 1. Admin actions (top-up): metadata.adminUserId === adminId && adminAction === true
+            // 2. Payments from admin's tenants: tenantId in adminTenantIds && has paymentCode in metadata
             const filteredVndTransactions = allVndTransactions.filter((t: any) => {
               const metadata = t.metadata as any;
-              return metadata?.adminUserId === adminId && metadata?.adminAction === true;
+              
+              // Case 1: Admin top-up action
+              if (metadata?.adminUserId === adminId && metadata?.adminAction === true) {
+                return true;
+              }
+              
+              // Case 2: Payment from admin's tenant (QR nạp tiền)
+              if (adminTenantIds.includes(t.tenantId) && metadata?.paymentCode) {
+                return true;
+              }
+              
+              return false;
             });
 
             // Apply pagination after filtering
@@ -1660,10 +1720,23 @@ export async function getAdminBalanceLogsHandler(
               orderBy: { createdAt: 'desc' },
             });
 
-            // Filter by metadata.adminUserId in memory
+            // Filter transactions:
+            // 1. Admin actions (top-up): metadata.adminUserId === adminId && adminAction === true
+            // 2. Payments from admin's tenants: tenantId in adminTenantIds && has paymentCode in metadata
             const filteredCreditTransactions = allCreditTransactions.filter((t: any) => {
               const metadata = t.metadata as any;
-              return metadata?.adminUserId === adminId && metadata?.adminAction === true;
+              
+              // Case 1: Admin top-up action
+              if (metadata?.adminUserId === adminId && metadata?.adminAction === true) {
+                return true;
+              }
+              
+              // Case 2: Payment from admin's tenant (QR nạp tiền) - Credit transactions từ payment
+              if (adminTenantIds.includes(t.tenantId) && metadata?.paymentCode) {
+                return true;
+              }
+              
+              return false;
             });
 
             // Apply pagination after filtering
@@ -1757,6 +1830,321 @@ export async function getAdminBalanceLogsHandler(
     }
 
     logger.error('Get admin balance logs error:', error);
+    return reply.status(500).send({
+      error: {
+        message: error instanceof Error ? error.message : 'Internal server error',
+        statusCode: 500,
+      },
+    });
+  }
+}
+
+/**
+ * Get all admin balance logs (sp-admin only)
+ * WHY: Sp-admin xem tất cả logs biến động số dư của TẤT CẢ admins
+ * - Hiển thị tất cả top-up actions của tất cả admins
+ * - Hiển thị tất cả payments từ tất cả tenants
+ * - Có thể filter theo adminId (optional)
+ */
+export async function getAllAdminBalanceLogsHandler(
+  request: FastifyRequest<{
+    Querystring: {
+      page?: string;
+      limit?: string;
+      startDate?: string;
+      endDate?: string;
+      type?: 'vnd' | 'credit' | 'all';
+      adminId?: string; // Optional filter by adminId
+    };
+  }>,
+  reply: FastifyReply
+) {
+  try {
+    const validated = getAllAdminBalanceLogsSchema.parse(request.query);
+
+    const page = validated.page || 1;
+    const limit = Math.min(validated.limit || 50, 100);
+    const skip = (page - 1) * limit;
+
+    // Build date filter
+    const dateFilter: any = {};
+    if (validated.startDate || validated.endDate) {
+      dateFilter.createdAt = {};
+      if (validated.startDate) {
+        dateFilter.createdAt.gte = validated.startDate;
+      }
+      if (validated.endDate) {
+        dateFilter.createdAt.lte = validated.endDate;
+      }
+    }
+
+    // Query VND transactions if type is 'vnd' or 'all'
+    const vndTransactionsPromise =
+      validated.type === 'credit'
+        ? Promise.resolve({ transactions: [], total: 0 })
+        : (async () => {
+            const whereClause: any = {
+              ...dateFilter,
+            };
+
+            const allVndTransactions = await (prisma as any).vNDTransaction.findMany({
+              where: whereClause,
+              select: {
+                id: true,
+                amount: true,
+                reason: true,
+                tenantId: true,
+                referenceId: true,
+                metadata: true,
+                createdAt: true,
+              },
+              orderBy: { createdAt: 'desc' },
+            });
+
+            // Filter transactions:
+            // 1. Admin top-up actions: metadata.adminAction === true
+            // 2. Payments: has paymentCode in metadata
+            // 3. Optional filter by adminId
+            const filteredVndTransactions = allVndTransactions.filter((t: any) => {
+              const metadata = t.metadata as any;
+              
+              // Case 1: Admin top-up action
+              if (metadata?.adminAction === true) {
+                // If adminId filter is provided, check if it matches
+                if (validated.adminId) {
+                  return metadata?.adminUserId === validated.adminId;
+                }
+                return true;
+              }
+              
+              // Case 2: Payment (QR nạp tiền)
+              if (metadata?.paymentCode) {
+                // If adminId filter is provided, check if admin is owner of tenant
+                if (validated.adminId) {
+                  // We'll check this after getting tenant info
+                  return true; // Include for now, filter later
+                }
+                return true;
+              }
+              
+              return false;
+            });
+
+            // If adminId filter is provided, filter payments by tenant ownership
+            let finalVndTransactions = filteredVndTransactions;
+            if (validated.adminId) {
+              // Get tenants where admin is owner
+              const adminTenants = await prisma.tenantUser.findMany({
+                where: {
+                  userId: validated.adminId,
+                  role: 'owner',
+                },
+                select: {
+                  tenantId: true,
+                },
+              });
+              const adminTenantIds = adminTenants.map((tu) => tu.tenantId);
+              
+              finalVndTransactions = filteredVndTransactions.filter((t: any) => {
+                const metadata = t.metadata as any;
+                // If it's a payment, check if admin owns the tenant
+                if (metadata?.paymentCode && !metadata?.adminAction) {
+                  return adminTenantIds.includes(t.tenantId);
+                }
+                return true; // Admin actions already filtered above
+              });
+            }
+
+            // Apply pagination after filtering
+            const paginatedTransactions = finalVndTransactions.slice(skip, skip + limit);
+            const total = finalVndTransactions.length;
+
+            return {
+              transactions: paginatedTransactions.map((t: any) => ({
+                ...t,
+                type: 'vnd' as const,
+              })),
+              total,
+            };
+          })();
+
+    // Query Credit transactions if type is 'credit' or 'all'
+    const creditTransactionsPromise =
+      validated.type === 'vnd'
+        ? Promise.resolve({ transactions: [], total: 0 })
+        : (async () => {
+            const whereClause: any = {
+              ...dateFilter,
+            };
+
+            const allCreditTransactions = await (prisma as any).creditTransaction.findMany({
+              where: whereClause,
+              select: {
+                id: true,
+                amount: true,
+                reason: true,
+                tenantId: true,
+                referenceId: true,
+                metadata: true,
+                createdAt: true,
+              },
+              orderBy: { createdAt: 'desc' },
+            });
+
+            // Filter transactions (same logic as VND)
+            const filteredCreditTransactions = allCreditTransactions.filter((t: any) => {
+              const metadata = t.metadata as any;
+              
+              if (metadata?.adminAction === true) {
+                if (validated.adminId) {
+                  return metadata?.adminUserId === validated.adminId;
+                }
+                return true;
+              }
+              
+              if (metadata?.paymentCode) {
+                if (validated.adminId) {
+                  return true; // Filter later by tenant ownership
+                }
+                return true;
+              }
+              
+              return false;
+            });
+
+            // Filter payments by tenant ownership if adminId provided
+            let finalCreditTransactions = filteredCreditTransactions;
+            if (validated.adminId) {
+              const adminTenants = await prisma.tenantUser.findMany({
+                where: {
+                  userId: validated.adminId,
+                  role: 'owner',
+                },
+                select: {
+                  tenantId: true,
+                },
+              });
+              const adminTenantIds = adminTenants.map((tu) => tu.tenantId);
+              
+              finalCreditTransactions = filteredCreditTransactions.filter((t: any) => {
+                const metadata = t.metadata as any;
+                if (metadata?.paymentCode && !metadata?.adminAction) {
+                  return adminTenantIds.includes(t.tenantId);
+                }
+                return true;
+              });
+            }
+
+            // Apply pagination after filtering
+            const paginatedTransactions = finalCreditTransactions.slice(skip, skip + limit);
+            const total = finalCreditTransactions.length;
+
+            return {
+              transactions: paginatedTransactions.map((t: any) => ({
+                ...t,
+                type: 'credit' as const,
+              })),
+              total,
+            };
+          })();
+
+    const [vndResult, creditResult] = await Promise.all([
+      vndTransactionsPromise,
+      creditTransactionsPromise,
+    ]);
+
+    // Merge all transactions and sort by createdAt desc
+    let allTransactions = [...vndResult.transactions, ...creditResult.transactions];
+    allTransactions.sort((a, b) => {
+      const dateA = new Date(a.createdAt).getTime();
+      const dateB = new Date(b.createdAt).getTime();
+      return dateB - dateA;
+    });
+
+    // Total count before pagination
+    const totalTransactions = allTransactions.length;
+
+    // Apply pagination after merging and sorting
+    const paginatedTransactions = allTransactions.slice(skip, skip + limit);
+
+    // Get unique tenant IDs and admin IDs to enrich with info
+    const tenantIds = [...new Set(paginatedTransactions.map((t) => t.tenantId))];
+    const adminIds = new Set<string>();
+    
+    paginatedTransactions.forEach((t: any) => {
+      const metadata = t.metadata as any;
+      if (metadata?.adminUserId) {
+        adminIds.add(metadata.adminUserId);
+      }
+    });
+
+    const [tenants, admins] = await Promise.all([
+      prisma.tenant.findMany({
+        where: { id: { in: tenantIds } },
+        select: { id: true, name: true },
+      }),
+      prisma.user.findMany({
+        where: { id: { in: Array.from(adminIds) } },
+        select: { id: true, email: true, name: true },
+      }),
+    ]);
+
+    const tenantMap = new Map(tenants.map((t) => [t.id, t]));
+    const adminMap = new Map(admins.map((a) => [a.id, a]));
+
+    // Enrich transactions with tenant and admin info
+    const enrichedTransactions = paginatedTransactions.map((txn: any) => {
+      const tenant = tenantMap.get(txn.tenantId);
+      const metadata = txn.metadata as any;
+      const admin = metadata?.adminUserId ? adminMap.get(metadata.adminUserId) : null;
+      
+      return {
+        id: txn.id,
+        type: txn.type,
+        amount: txn.amount,
+        reason: txn.reason,
+        tenant: tenant ? { id: tenant.id, name: tenant.name } : null,
+        admin: admin ? { id: admin.id, email: admin.email, name: admin.name } : null,
+        isPayment: !!metadata?.paymentCode,
+        isTopUp: !!metadata?.adminAction,
+        paymentCode: metadata?.paymentCode || null,
+        createdAt: txn.createdAt,
+      };
+    });
+
+    logger.info('All admin balance logs retrieved', {
+      totalTransactions,
+      returnedCount: enrichedTransactions.length,
+      type: validated.type,
+      adminIdFilter: validated.adminId || 'all',
+    });
+
+    return reply.status(200).send({
+      success: true,
+      data: enrichedTransactions,
+      meta: {
+        page,
+        limit,
+        total: totalTransactions,
+        totalPages: Math.ceil(totalTransactions / limit),
+        filter: {
+          adminId: validated.adminId || null,
+          type: validated.type,
+        },
+      },
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return reply.status(400).send({
+        error: {
+          message: 'Validation error',
+          statusCode: 400,
+          details: error.errors,
+        },
+      });
+    }
+
+    logger.error('Get all admin balance logs error:', error);
     return reply.status(500).send({
       error: {
         message: error instanceof Error ? error.message : 'Internal server error',

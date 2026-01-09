@@ -56,22 +56,36 @@ export async function setupRoutes(fastify: FastifyInstance) {
   await fastify.register(adminRoutes, { prefix: '/sp-admin' });
   logger.info('Admin routes registered successfully');
 
-  // Register catalog routes (tenant-level)
-  await fastify.register(catalogRoutes);
-
-  // Register billing routes (tenant-level)
-  await fastify.register(billingRoutes);
-
-  // Register tenant service & workflow routes (tenant-level)
-  await fastify.register(tenantServiceRoutes);
+  // Register admin routes (tenant admin - requireAdmin role)
+  await fastify.register(catalogRoutes, { prefix: '/admin' });
+  await fastify.register(billingRoutes, { prefix: '/admin' });
+  await fastify.register(tenantServiceRoutes, { prefix: '/admin' });
 
   // WHY: Webhook endpoint phải được đăng ký TRƯỚC payment routes
   // - Tránh bị ảnh hưởng bởi middleware auth trong payment routes
   // - Webhook là public endpoint, không cần authentication
   fastify.post('/sp-admin/payments/webhook/sepay', sepayWebhookHandler);
 
-  // Register payment routes (sp-admin only)
-  await fastify.register(paymentRoutes, { prefix: '/sp-admin/payments' });
+  // Register payment routes
+  // - Admin endpoints (tenant admin) → /admin/payments
+  // - Super admin endpoints → /sp-admin/payments
+  await fastify.register(paymentRoutes, { prefix: '/admin/payments' });
+  
+  // Register super admin payment routes (separate)
+  await fastify.register(async function (fastify) {
+    const { authenticate } = await import('../middleware/auth');
+    const { requireSuperAdmin } = await import('../middleware/role-check');
+    const { getAllPaymentsHandler, manualCompletePaymentHandler } = await import('../controllers/payment/payment.controller');
+    
+    fastify.addHook('preHandler', authenticate);
+    fastify.addHook('preHandler', requireSuperAdmin);
+    
+    // Get all payments (super admin only)
+    fastify.get('/all', getAllPaymentsHandler);
+    
+    // Manual complete payment (super admin only)
+    fastify.post('/:id/manual-complete', manualCompletePaymentHandler);
+  }, { prefix: '/sp-admin/payments' });
 
   // Register credit routes
   await fastify.register(creditRoutes, { prefix: '/credits' });

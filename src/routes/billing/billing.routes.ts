@@ -17,12 +17,11 @@ export async function billingRoutes(fastify: FastifyInstance) {
   fastify.addHook('preHandler', authenticate);
   fastify.addHook('preHandler', requireAdmin);
 
-  fastify.get(
-    '/tenants/:tenantId/billing/subscription',
-    getTenantSubscriptionHandler
-  );
+  // Get tenant subscription (tenant admin can view their own tenant)
+  fastify.get('/billing/subscription', getTenantSubscriptionHandler);
 
-  fastify.get('/tenants/:tenantId/billing/credit', getTenantCreditHandler);
+  // Get tenant credit (tenant admin can view their own tenant)
+  fastify.get('/billing/credit', getTenantCreditHandler);
 }
 
 

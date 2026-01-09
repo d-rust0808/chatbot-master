@@ -16,11 +16,9 @@ import {
   getPendingPaymentHandler,
   cancelPendingPaymentHandler,
   cancelPaymentByIdHandler,
-  getAllPaymentsHandler,
-  manualCompletePaymentHandler,
 } from '../../controllers/payment/payment.controller';
 import { authenticate } from '../../middleware/auth';
-import { requireAdmin, requireSuperAdmin } from '../../middleware/role-check';
+import { requireAdmin } from '../../middleware/role-check';
 
 export async function paymentRoutes(fastify: FastifyInstance) {
   // WHY: Webhook endpoint đã được đăng ký ở routes/index.ts
@@ -51,16 +49,8 @@ export async function paymentRoutes(fastify: FastifyInstance) {
 
   // Cancel payment by ID
   fastify.delete('/:id', cancelPaymentByIdHandler);
-
-  // Super admin endpoints (separate route group to avoid hook conflict)
-  fastify.register(async function (fastify) {
-    fastify.addHook('preHandler', requireSuperAdmin);
-    
-    // Get all payments (super admin only)
-    fastify.get('/superadmin/all', getAllPaymentsHandler);
-
-    // Manual complete payment (super admin only)
-    fastify.post('/:id/manual-complete', manualCompletePaymentHandler);
-  });
+  
+  // NOTE: Super admin endpoints (getAllPaymentsHandler, manualCompletePaymentHandler)
+  // are registered separately in routes/index.ts with prefix /sp-admin/payments
 }
 
