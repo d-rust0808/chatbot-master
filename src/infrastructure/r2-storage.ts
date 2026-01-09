@@ -78,13 +78,23 @@ export async function uploadToR2(
     await client.send(command);
 
     // Build public URL
-    const publicUrl = config.r2.publicUrl
-      ? `${config.r2.publicUrl}/${key}`
-      : `https://${config.r2.bucketName}.r2.dev/${key}`;
+    // WHY: Sử dụng R2_PUBLIC_URL nếu có, nếu không thì build từ bucket name
+    let publicUrl: string;
+    if (config.r2.publicUrl) {
+      // Đảm bảo publicUrl không có trailing slash
+      const baseUrl = config.r2.publicUrl.endsWith('/') 
+        ? config.r2.publicUrl.slice(0, -1) 
+        : config.r2.publicUrl;
+      publicUrl = `${baseUrl}/${key}`;
+    } else {
+      // Fallback: build từ bucket name (có thể không hoạt động nếu bucket chưa có custom domain)
+      publicUrl = `https://${config.r2.bucketName}.r2.dev/${key}`;
+    }
 
     logger.info('File uploaded to R2 successfully', {
       key,
       publicUrl,
+      bucketName: config.r2.bucketName,
     });
 
     return publicUrl;

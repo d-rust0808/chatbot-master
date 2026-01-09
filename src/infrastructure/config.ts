@@ -80,9 +80,12 @@ const envSchema = z.object({
   SEPAY_API_URL: z.string().url().optional(), // Sepay API URL (nếu có)
   
   // Cloudflare R2 Storage
+  R2_ENABLED: z.string().transform((val) => val === 'true' || val === '1').default('false').optional(),
   R2_ACCOUNT_ID: z.string().optional(),
   R2_ACCESS_KEY_ID: z.string().optional(),
+  R2_ACCESS_KEY: z.string().optional(), // Alias for R2_ACCESS_KEY_ID
   R2_SECRET_ACCESS_KEY: z.string().optional(),
+  R2_SECRET_KEY: z.string().optional(), // Alias for R2_SECRET_ACCESS_KEY
   R2_BUCKET_NAME: z.string().optional(),
   R2_PUBLIC_URL: z.string().url().optional(), // Public URL của R2 bucket
   R2_ENDPOINT: z.string().url().optional(), // S3 API endpoint
@@ -234,12 +237,16 @@ export const config = {
   
   r2: {
     accountId: env.R2_ACCOUNT_ID || '',
-    accessKeyId: env.R2_ACCESS_KEY_ID || '',
-    secretAccessKey: env.R2_SECRET_ACCESS_KEY || '',
+    // Support cả R2_ACCESS_KEY và R2_ACCESS_KEY_ID
+    accessKeyId: env.R2_ACCESS_KEY_ID || env.R2_ACCESS_KEY || '',
+    // Support cả R2_SECRET_KEY và R2_SECRET_ACCESS_KEY
+    secretAccessKey: env.R2_SECRET_ACCESS_KEY || env.R2_SECRET_KEY || '',
     bucketName: env.R2_BUCKET_NAME || '',
-    publicUrl: env.R2_PUBLIC_URL || '',
-    endpoint: env.R2_ENDPOINT || '',
-    enabled: !!(env.R2_ACCOUNT_ID && env.R2_ACCESS_KEY_ID && env.R2_SECRET_ACCESS_KEY && env.R2_BUCKET_NAME),
+    // Trim whitespace từ public URL
+    publicUrl: (env.R2_PUBLIC_URL || '').trim(),
+    endpoint: env.R2_ENDPOINT || (env.R2_ACCOUNT_ID ? `https://${env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com` : ''),
+    // Check R2_ENABLED flag và các required fields
+    enabled: env.R2_ENABLED === true && !!(env.R2_ACCOUNT_ID && (env.R2_ACCESS_KEY_ID || env.R2_ACCESS_KEY) && (env.R2_SECRET_ACCESS_KEY || env.R2_SECRET_KEY) && env.R2_BUCKET_NAME),
   },
 } as const;
 
