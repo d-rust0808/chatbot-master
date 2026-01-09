@@ -105,7 +105,7 @@ export async function createServicePackage(data: {
   sortOrder?: number;
 }) {
   // Validate service name
-  const validServices = ['whatsapp', 'messenger', 'tiktok', 'zalo', 'instagram'];
+  const validServices = ['whatsapp', 'messenger', 'tiktok', 'zalo', 'instagram', 'shopee'];
   if (!validServices.includes(data.service.toLowerCase())) {
     throw new CreditOperationError(
       `Invalid service. Allowed: ${validServices.join(', ')}`
@@ -162,7 +162,7 @@ export async function updateServicePackage(
 
   // Validate service if provided
   if (data.service) {
-    const validServices = ['whatsapp', 'messenger', 'tiktok', 'zalo', 'instagram'];
+    const validServices = ['whatsapp', 'messenger', 'tiktok', 'zalo', 'instagram', 'shopee'];
     if (!validServices.includes(data.service.toLowerCase())) {
       throw new CreditOperationError(
         `Invalid service. Allowed: ${validServices.join(', ')}`
