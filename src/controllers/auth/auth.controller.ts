@@ -78,6 +78,13 @@ export async function loginHandler(
   reply: FastifyReply
 ) {
   try {
+    // Log request for debugging
+    logger.debug('Login request received', {
+      email: request.body?.email,
+      hasPassword: !!request.body?.password,
+      bodyKeys: request.body ? Object.keys(request.body) : [],
+    });
+
     // Validate input
     const validatedData = loginSchema.parse(request.body);
 
@@ -114,6 +121,14 @@ export async function loginHandler(
       provider,
     });
   } catch (error) {
+    // Log error với full context
+    logger.error('Login error:', {
+      error: error instanceof Error ? error.message : String(error),
+      errorType: error instanceof Error ? error.constructor.name : typeof error,
+      stack: error instanceof Error ? error.stack : undefined,
+      requestBody: request.body,
+    });
+
     if (error instanceof z.ZodError) {
       return reply.status(400).send({
         error: {
@@ -121,6 +136,8 @@ export async function loginHandler(
           statusCode: 400,
           details: error.errors,
         },
+        api_version: 'v1',
+        provider: 'cdudu',
       });
     }
 
@@ -131,15 +148,19 @@ export async function loginHandler(
           message: 'Invalid credentials',
           statusCode: 401,
         },
+        api_version: 'v1',
+        provider: 'cdudu',
       });
     }
 
-    logger.error('Login error:', error);
+    // Handle other errors
     return reply.status(500).send({
       error: {
-        message: 'Internal server error',
+        message: error instanceof Error ? error.message : 'Internal server error',
         statusCode: 500,
       },
+      api_version: 'v1',
+      provider: 'cdudu',
     });
   }
 }
