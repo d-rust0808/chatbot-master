@@ -13,6 +13,7 @@ import {
   updateServicePackage,
   deleteServicePackage,
   getAllServicePackages,
+  getServicePackageByIdAdmin,
   saveServicePackageImage,
 } from '../../services/service-package/admin.service';
 import { logger } from '../../infrastructure/logger';
@@ -236,11 +237,11 @@ export async function deleteServicePackageHandler(
 
 /**
  * Get all service packages (admin view)
- * GET /api/v1/admin/service-packages?service=whatsapp
+ * GET /api/v1/admin/service-packages?service=whatsapp&isActive=true
  */
 export async function getAllServicePackagesHandler(
   request: FastifyRequest<{
-    Querystring: { service?: string };
+    Querystring: { service?: string; isActive?: string };
   }>,
   reply: FastifyReply
 ) {
@@ -256,8 +257,15 @@ export async function getAllServicePackagesHandler(
       });
     }
 
-    const service = request.query.service;
-    const packages = await getAllServicePackages(service);
+    const filters: any = {};
+    if (request.query.service) {
+      filters.service = request.query.service;
+    }
+    if (request.query.isActive !== undefined) {
+      filters.isActive = request.query.isActive === 'true';
+    }
+
+    const packages = await getAllServicePackages(filters);
 
     return reply.status(200).send({
       success: true,
@@ -269,6 +277,46 @@ export async function getAllServicePackagesHandler(
       error: {
         message: 'Internal server error',
         statusCode: 500,
+      },
+    });
+  }
+}
+
+/**
+ * Get service package by ID (Admin)
+ * GET /api/v1/admin/service-packages/:id
+ */
+export async function getServicePackageByIdAdminHandler(
+  request: FastifyRequest<{
+    Params: { id: string };
+  }>,
+  reply: FastifyReply
+) {
+  try {
+    const authRequest = request as AuthenticatedRequest;
+    
+    if (authRequest.user?.role !== 'sp-admin') {
+      return reply.status(403).send({
+        error: {
+          message: 'Forbidden: Super admin only',
+          statusCode: 403,
+        },
+      });
+    }
+
+    const { id } = request.params;
+    const servicePackage = await getServicePackageByIdAdmin(id);
+
+    return reply.status(200).send({
+      success: true,
+      data: servicePackage,
+    });
+  } catch (error) {
+    logger.error('Get service package by ID admin error:', error);
+    return reply.status(404).send({
+      error: {
+        message: error instanceof Error ? error.message : 'Service package not found',
+        statusCode: 404,
       },
     });
   }

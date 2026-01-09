@@ -10,6 +10,8 @@ import {
   purchaseServicePackageHandler,
   getTenantSubscriptionsHandler,
   cancelSubscriptionHandler,
+  getMyActiveSubscriptionsHandler,
+  checkServiceActiveHandler,
 } from '../../controllers/service-package/service-package.controller';
 import { authenticate } from '../../middleware/auth';
 
@@ -23,8 +25,14 @@ export async function servicePackageRoutes(fastify: FastifyInstance) {
   // Purchase package
   fastify.post('/:packageId/purchase', purchaseServicePackageHandler);
 
-  // Get tenant subscriptions
+  // Get tenant subscriptions (full details)
   fastify.get('/subscriptions', getTenantSubscriptionsHandler);
+
+  // Get active subscriptions for sidebar (optimized)
+  fastify.get('/my-subscriptions', getMyActiveSubscriptionsHandler);
+
+  // Check if specific service is active
+  fastify.get('/check/:service', checkServiceActiveHandler);
 
   // Cancel subscription
   fastify.post('/subscriptions/:subscriptionId/cancel', cancelSubscriptionHandler);

@@ -179,41 +179,67 @@ export async function deleteServicePackage(packageId: string) {
   // Check if has active subscriptions
   if (package_.subscriptions.length > 0) {
     throw new CreditOperationError(
-      'Cannot delete package with active subscriptions'
+      'Cannot delete service package with active subscriptions'
     );
   }
 
-  // Delete image if exists
-  if (package_.imageUrl) {
-    try {
-      const imagePath = path.join(process.cwd(), 'public', package_.imageUrl);
-      await fs.unlink(imagePath);
-    } catch (error) {
-      logger.warn('Failed to delete package image', { error, imageUrl: package_.imageUrl });
-    }
-  }
-
-  await (prisma as any).servicePackage.delete({
+  // Soft delete: set isActive = false (không hard delete để giữ lịch sử)
+  const deleted = await (prisma as any).servicePackage.update({
     where: { id: packageId },
+    data: {
+      isActive: false,
+      updatedAt: new Date(),
+    },
   });
 
-  logger.info('Service package deleted', { packageId });
+  logger.info('Service package deleted (soft)', {
+    packageId: deleted.id,
+    name: deleted.name,
+  });
+
+  return deleted;
 }
 
 /**
  * Get all service packages (admin view - includes inactive)
  */
-export async function getAllServicePackages(service?: string) {
+export async function getAllServicePackages(filters?: {
+  service?: string;
+  isActive?: boolean;
+}) {
   const where: any = {};
-  if (service) {
-    where.service = service.toLowerCase();
+  
+  if (filters?.service) {
+    where.service = filters.service.toLowerCase();
+  }
+  
+  if (filters?.isActive !== undefined) {
+    where.isActive = filters.isActive;
   }
 
   const packages = await (prisma as any).servicePackage.findMany({
     where,
-    orderBy: { sortOrder: 'asc' },
+    orderBy: [
+      { sortOrder: 'asc' },
+      { createdAt: 'desc' },
+    ],
   });
 
   return packages;
+}
+
+/**
+ * Get service package by ID (Admin)
+ */
+export async function getServicePackageByIdAdmin(packageId: string) {
+  const servicePackage = await (prisma as any).servicePackage.findUnique({
+    where: { id: packageId },
+  });
+
+  if (!servicePackage) {
+    throw new CreditOperationError('Service package not found');
+  }
+
+  return servicePackage;
 }
 

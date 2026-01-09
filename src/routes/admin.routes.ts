@@ -25,11 +25,13 @@ import {
   updateTenantAdminHandler,
   deleteTenantAdminHandler,
 } from '../controllers/admin/admin.controller';
+// Use existing admin controller with image upload support
 import {
   createServicePackageHandler,
   updateServicePackageHandler,
   deleteServicePackageHandler,
   getAllServicePackagesHandler,
+  getServicePackageByIdAdminHandler,
 } from '../controllers/service-package/admin.controller';
 import { authenticate } from '../middleware/auth';
 import { requireSuperAdmin } from '../middleware/role-check';
@@ -93,9 +95,15 @@ export async function adminRoutes(fastify: FastifyInstance) {
   fastify.delete('/tenant-admins/:userId', deleteTenantAdminHandler);
 
   // Service packages management (sp-admin only)
+  // GET all - uses admin controller (supports filters)
   fastify.get('/service-packages', getAllServicePackagesHandler);
+  // GET by ID - uses service-package controller
+  fastify.get('/service-packages/:id', getServicePackageByIdAdminHandler);
+  // POST create - uses admin controller (supports multipart/form-data for image)
   fastify.post('/service-packages', createServicePackageHandler);
+  // PUT update - uses admin controller (supports multipart/form-data for image)
   fastify.put('/service-packages/:id', updateServicePackageHandler);
+  // DELETE - uses admin controller
   fastify.delete('/service-packages/:id', deleteServicePackageHandler);
 }
 

@@ -5,6 +5,7 @@
  * - Purchase service packages
  * - Manage subscriptions
  * - Auto-enable service when subscribed
+ * - Admin CRUD operations
  */
 
 import { prisma } from '../../infrastructure/database';
@@ -250,6 +251,7 @@ async function enableServiceForTenant(
 
 /**
  * Get tenant's active subscriptions
+ * WHY: Lấy danh sách subscriptions đang active cho tenant
  */
 export async function getTenantSubscriptions(tenantId: string) {
   const subscriptions = await (prisma as any).serviceSubscription.findMany({
@@ -268,6 +270,7 @@ export async function getTenantSubscriptions(tenantId: string) {
           pricePerMonth: true,
           minDuration: true,
           features: true,
+          imageUrl: true,
         },
       },
     },
@@ -287,6 +290,93 @@ export async function getTenantSubscriptions(tenantId: string) {
       (sub.endDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
     ),
   }));
+}
+
+/**
+ * Get active subscriptions for sidebar
+ * WHY: Format data phù hợp cho sidebar UI - chỉ lấy thông tin cần thiết
+ */
+export async function getActiveSubscriptionsForSidebar(tenantId: string) {
+  const subscriptions = await (prisma as any).serviceSubscription.findMany({
+    where: {
+      tenantId,
+      status: 'active',
+      endDate: { gt: new Date() },
+    },
+    include: {
+      package: {
+        select: {
+          id: true,
+          name: true,
+          service: true,
+          imageUrl: true,
+        },
+      },
+    },
+    orderBy: { endDate: 'asc' },
+  });
+
+  return subscriptions.map((sub: any) => ({
+    id: sub.id,
+    service: sub.package.service,
+    serviceName: sub.package.name,
+    imageUrl: sub.package.imageUrl,
+    startDate: sub.startDate,
+    endDate: sub.endDate,
+    daysRemaining: Math.ceil(
+      (sub.endDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
+    ),
+    isActive: true,
+  }));
+}
+
+/**
+ * Check if service is active for tenant
+ * WHY: Kiểm tra nhanh xem service có đang active không
+ */
+export async function checkServiceActive(tenantId: string, service: string) {
+  const subscription = await (prisma as any).serviceSubscription.findFirst({
+    where: {
+      tenantId,
+      package: {
+        service: service.toLowerCase(),
+      },
+      status: 'active',
+      endDate: { gt: new Date() },
+    },
+    include: {
+      package: {
+        select: {
+          id: true,
+          name: true,
+          service: true,
+          imageUrl: true,
+        },
+      },
+    },
+  });
+
+  if (!subscription) {
+    return {
+      isActive: false,
+      subscription: null,
+    };
+  }
+
+  return {
+    isActive: true,
+    subscription: {
+      id: subscription.id,
+      service: subscription.package.service,
+      serviceName: subscription.package.name,
+      imageUrl: subscription.package.imageUrl,
+      startDate: subscription.startDate,
+      endDate: subscription.endDate,
+      daysRemaining: Math.ceil(
+        (subscription.endDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
+      ),
+    },
+  };
 }
 
 /**
@@ -348,5 +438,213 @@ export async function isServiceSubscribed(
   });
 
   return !!subscription;
+}
+
+// ==================== Admin CRUD Operations ====================
+
+/**
+ * Create service package (Admin only)
+ * WHY: Super admin tạo gói dịch vụ mới
+ */
+export async function createServicePackage(data: {
+  name: string;
+  description?: string;
+  service: string; // whatsapp, facebook, instagram, tiktok, zalo, etc.
+  pricePerMonth: number;
+  minDuration?: number;
+  imageUrl?: string;
+  features?: any; // JSON
+  isActive?: boolean;
+  sortOrder?: number;
+}) {
+  // Validate service name
+  const validServices = ['whatsapp', 'facebook', 'instagram', 'tiktok', 'zalo', 'messenger'];
+  if (!validServices.includes(data.service.toLowerCase())) {
+    throw new CreditOperationError(`Invalid service: ${data.service}. Valid services: ${validServices.join(', ')}`);
+  }
+
+  // Validate price
+  if (data.pricePerMonth <= 0) {
+    throw new CreditOperationError('Price per month must be greater than 0');
+  }
+
+  const servicePackage = await (prisma as any).servicePackage.create({
+    data: {
+      name: data.name,
+      description: data.description || null,
+      service: data.service.toLowerCase(),
+      pricePerMonth: data.pricePerMonth,
+      minDuration: data.minDuration || 1,
+      imageUrl: data.imageUrl || null,
+      features: data.features || null,
+      isActive: data.isActive !== undefined ? data.isActive : true,
+      sortOrder: data.sortOrder || 0,
+    },
+  });
+
+  logger.info('Service package created', {
+    packageId: servicePackage.id,
+    name: servicePackage.name,
+    service: servicePackage.service,
+  });
+
+  return servicePackage;
+}
+
+/**
+ * Get all service packages (Admin view - includes inactive)
+ * WHY: Admin cần xem tất cả packages, kể cả inactive
+ */
+export async function getAllServicePackagesAdmin(filters?: {
+  service?: string;
+  isActive?: boolean;
+}) {
+  const where: any = {};
+  
+  if (filters?.service) {
+    where.service = filters.service.toLowerCase();
+  }
+  
+  if (filters?.isActive !== undefined) {
+    where.isActive = filters.isActive;
+  }
+
+  const packages = await (prisma as any).servicePackage.findMany({
+    where,
+    orderBy: [
+      { sortOrder: 'asc' },
+      { createdAt: 'desc' },
+    ],
+  });
+
+  return packages;
+}
+
+/**
+ * Get service package by ID (Admin)
+ */
+export async function getServicePackageByIdAdmin(packageId: string) {
+  const servicePackage = await (prisma as any).servicePackage.findUnique({
+    where: { id: packageId },
+  });
+
+  if (!servicePackage) {
+    throw new CreditOperationError('Service package not found');
+  }
+
+  return servicePackage;
+}
+
+/**
+ * Update service package (Admin only)
+ * WHY: Super admin cập nhật thông tin gói dịch vụ
+ */
+export async function updateServicePackage(
+  packageId: string,
+  data: {
+    name?: string;
+    description?: string;
+    service?: string;
+    pricePerMonth?: number;
+    minDuration?: number;
+    imageUrl?: string;
+    features?: any;
+    isActive?: boolean;
+    sortOrder?: number;
+  }
+) {
+  // Check if package exists
+  const existing = await (prisma as any).servicePackage.findUnique({
+    where: { id: packageId },
+  });
+
+  if (!existing) {
+    throw new CreditOperationError('Service package not found');
+  }
+
+  // Validate service if provided
+  if (data.service) {
+    const validServices = ['whatsapp', 'facebook', 'instagram', 'tiktok', 'zalo', 'messenger'];
+    if (!validServices.includes(data.service.toLowerCase())) {
+      throw new CreditOperationError(`Invalid service: ${data.service}. Valid services: ${validServices.join(', ')}`);
+    }
+  }
+
+  // Validate price if provided
+  if (data.pricePerMonth !== undefined && data.pricePerMonth <= 0) {
+    throw new CreditOperationError('Price per month must be greater than 0');
+  }
+
+  // Build update data (only include provided fields)
+  const updateData: any = {};
+  if (data.name !== undefined) updateData.name = data.name;
+  if (data.description !== undefined) updateData.description = data.description;
+  if (data.service !== undefined) updateData.service = data.service.toLowerCase();
+  if (data.pricePerMonth !== undefined) updateData.pricePerMonth = data.pricePerMonth;
+  if (data.minDuration !== undefined) updateData.minDuration = data.minDuration;
+  if (data.imageUrl !== undefined) updateData.imageUrl = data.imageUrl;
+  if (data.features !== undefined) updateData.features = data.features;
+  if (data.isActive !== undefined) updateData.isActive = data.isActive;
+  if (data.sortOrder !== undefined) updateData.sortOrder = data.sortOrder;
+  updateData.updatedAt = new Date();
+
+  const updated = await (prisma as any).servicePackage.update({
+    where: { id: packageId },
+    data: updateData,
+  });
+
+  logger.info('Service package updated', {
+    packageId: updated.id,
+    name: updated.name,
+    service: updated.service,
+  });
+
+  return updated;
+}
+
+/**
+ * Delete service package (Soft delete - Admin only)
+ * WHY: Soft delete bằng cách set isActive = false
+ * - Không hard delete để giữ lịch sử subscriptions
+ */
+export async function deleteServicePackage(packageId: string) {
+  // Check if package exists
+  const existing = await (prisma as any).servicePackage.findUnique({
+    where: { id: packageId },
+    include: {
+      subscriptions: {
+        where: {
+          status: 'active',
+          endDate: { gt: new Date() },
+        },
+        take: 1,
+      },
+    },
+  });
+
+  if (!existing) {
+    throw new CreditOperationError('Service package not found');
+  }
+
+  // Check if has active subscriptions
+  if (existing.subscriptions.length > 0) {
+    throw new CreditOperationError('Cannot delete service package with active subscriptions');
+  }
+
+  // Soft delete: set isActive = false
+  const deleted = await (prisma as any).servicePackage.update({
+    where: { id: packageId },
+    data: {
+      isActive: false,
+      updatedAt: new Date(),
+    },
+  });
+
+  logger.info('Service package deleted (soft)', {
+    packageId: deleted.id,
+    name: deleted.name,
+  });
+
+  return deleted;
 }
 
