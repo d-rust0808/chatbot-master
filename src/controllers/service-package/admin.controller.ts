@@ -120,12 +120,34 @@ export async function createServicePackageHandler(
           });
           
           if (multipartPart.type === 'file') {
-            imageFile = multipartPart;
-            logger.info('Image file received', {
+            logger.info('Image file part received, reading buffer', {
               filename: multipartPart.filename,
               mimetype: multipartPart.mimetype,
-              encoding: multipartPart.encoding,
+              hasToBuffer: typeof multipartPart.toBuffer === 'function',
             });
+            
+            // WHY: Đọc buffer ngay trong loop để consume stream đúng cách
+            try {
+              if (!multipartPart.toBuffer) {
+                throw new Error('File part does not have toBuffer method');
+              }
+              
+              const buffer = await multipartPart.toBuffer();
+              imageFile = {
+                ...multipartPart,
+                buffer, // Store buffer để dùng sau
+              };
+              logger.info('Image file buffer read successfully', {
+                filename: multipartPart.filename,
+                bufferSize: buffer.length,
+              });
+            } catch (bufferError) {
+              logger.error('Failed to read image buffer', {
+                error: bufferError instanceof Error ? bufferError.message : String(bufferError),
+                filename: multipartPart.filename,
+              });
+              throw bufferError;
+            }
           } else {
             formData[multipartPart.fieldname] = multipartPart.value;
             logger.info('Form field received', {
@@ -219,13 +241,30 @@ export async function createServicePackageHandler(
     // Handle image upload
     let imageUrl: string | undefined;
     if (imageFile) {
-      const buffer = await imageFile.toBuffer();
+      logger.info('Processing image upload', {
+        filename: imageFile.filename,
+        mimetype: imageFile.mimetype,
+        hasBuffer: !!(imageFile as any).buffer,
+      });
+      
+      // WHY: Dùng buffer đã đọc sẵn trong loop, không đọc lại
+      const buffer = (imageFile as any).buffer || await imageFile.toBuffer();
       const file = {
         filename: imageFile.filename || 'image.jpg',
         mimetype: imageFile.mimetype || 'image/jpeg',
         buffer,
       };
+      
+      logger.info('Saving image file', {
+        filename: file.filename,
+        bufferSize: buffer.length,
+      });
+      
       imageUrl = await saveServicePackageImage(file);
+      
+      logger.info('Image saved successfully', {
+        imageUrl,
+      });
     }
 
     // Create package

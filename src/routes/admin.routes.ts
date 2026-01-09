@@ -71,7 +71,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
     logger.info('Admin route request', {
       method: request.method,
       url: request.url,
-      path: request.routerPath,
+      path: (request as any).routeOptions?.url || request.url,
       contentType: request.headers['content-type'],
       hasAuth: !!request.headers.authorization,
       origin: request.headers.origin,

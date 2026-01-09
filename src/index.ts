@@ -65,7 +65,7 @@ app.addHook('onRequest', async (request, reply) => {
   logger.info('Incoming request', {
     method: request.method,
     url: request.url,
-    path: request.routerPath || request.url,
+    path: (request as any).routeOptions?.url || request.url,
     contentType: request.headers['content-type'],
     hasAuth: !!request.headers.authorization,
     origin: request.headers.origin,
