@@ -28,6 +28,14 @@ import {
   getAdminBalanceLogsHandler,
   getAllAdminBalanceLogsHandler,
 } from '../controllers/admin/admin.controller';
+import {
+  listSystemConfigsHandler,
+  getSystemConfigHandler,
+  createSystemConfigHandler,
+  updateSystemConfigHandler,
+  deleteSystemConfigHandler,
+  initializeSystemConfigsHandler,
+} from '../controllers/admin/system-config.controller';
 // Use existing admin controller with image upload support
 import {
   createServicePackageHandler,
@@ -187,5 +195,14 @@ export async function adminRoutes(fastify: FastifyInstance) {
   fastify.put('/service-packages/:id', updateServicePackageHandler);
   // DELETE - uses admin controller
   fastify.delete('/service-packages/:id', deleteServicePackageHandler);
+
+  // System Config management (sp-admin only)
+  // WHY: SP-Admin quản lý system-wide configurations
+  fastify.get('/system-configs', listSystemConfigsHandler);
+  fastify.get('/system-configs/:category/:key', getSystemConfigHandler);
+  fastify.post('/system-configs', createSystemConfigHandler);
+  fastify.patch('/system-configs/:category/:key', updateSystemConfigHandler);
+  fastify.delete('/system-configs/:category/:key', deleteSystemConfigHandler);
+  fastify.post('/system-configs/initialize', initializeSystemConfigsHandler);
 }
 

@@ -609,3 +609,26 @@ model ServiceSubscription {
   @@index([status, endDate])
   @@map("service_subscriptions")
 }
+
+/// System Configuration (SP-Admin managed)
+/// WHY: Centralized controls for platform-level features and safeguards
+/// - SP-Admin có thể thay đổi config qua API
+/// - Config được cache trong Redis để performance
+/// - Track ai đã thay đổi config (audit trail)
+model SystemConfig {
+  id          String   @id @default(cuid())
+  category    String   // platform | ai | security | billing | features | maintenance | safeguards
+  key         String   // Unique key (e.g., "rate_limit.whatsapp.messages_per_minute")
+  value       Json     // Flexible JSON value
+  type        String   // string | number | boolean | object | array
+  description String?  // Human-readable description
+  isEditable  Boolean  @default(true) // Can be changed via API
+  updatedBy   String?  // User ID (sp-admin) who last updated
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([category, key])
+  @@index([category])
+  @@index([key])
+  @@map("system_configs")
+}
