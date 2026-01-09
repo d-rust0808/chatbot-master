@@ -84,10 +84,14 @@ export async function getSystemConfigHandler(
       key
     );
     
+    // Return 200 with null value if config doesn't exist (for AI config, allow empty)
     if (!config) {
-      return reply.status(404).send({
-        error: {
-          message: 'System config not found',
+      return reply.status(200).send({
+        data: {
+          category,
+          key,
+          value: null,
+          type: 'string',
         },
       });
     }
@@ -221,13 +225,7 @@ export async function updateSystemConfigHandler(
       });
     }
     
-    if (error instanceof Error && error.message.includes('not found')) {
-      return reply.status(404).send({
-        error: {
-          message: 'System config not found',
-        },
-      });
-    }
+    // Config will be auto-created if doesn't exist, so no need for 404 check
     
     if (error instanceof Error && error.message.includes('not editable')) {
       return reply.status(403).send({

@@ -29,11 +29,8 @@ import {
   getAllAdminBalanceLogsHandler,
 } from '../controllers/admin/admin.controller';
 import {
-  listSystemConfigsHandler,
   getSystemConfigHandler,
-  createSystemConfigHandler,
   updateSystemConfigHandler,
-  deleteSystemConfigHandler,
   initializeSystemConfigsHandler,
 } from '../controllers/admin/system-config.controller';
 import {
@@ -207,13 +204,11 @@ export async function adminRoutes(fastify: FastifyInstance) {
   // DELETE - uses admin controller
   fastify.delete('/service-packages/:id', deleteServicePackageHandler);
 
-  // System Config management (sp-admin only)
-  // WHY: SP-Admin quản lý system-wide configurations
-  fastify.get('/system-configs', listSystemConfigsHandler);
+  // AI Config management (sp-admin only)
+  // WHY: SP-Admin quản lý AI configurations (API keys, models, logs)
+  // Chỉ giữ lại các API cần thiết cho AI Config
   fastify.get('/system-configs/:category/:key', getSystemConfigHandler);
-  fastify.post('/system-configs', createSystemConfigHandler);
   fastify.patch('/system-configs/:category/:key', updateSystemConfigHandler);
-  fastify.delete('/system-configs/:category/:key', deleteSystemConfigHandler);
   fastify.post('/system-configs/initialize', initializeSystemConfigsHandler);
 
   // AI Models management (sp-admin only)

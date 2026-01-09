@@ -291,8 +291,37 @@ export class SystemConfigService {
         },
       });
       
+      // Auto-create config if doesn't exist (upsert behavior for AI config)
       if (!existing) {
-        throw new NotFoundError(`System config not found: ${category}.${key}`);
+        // Infer type from value if not provided
+        let type: SystemConfigType = 'string';
+        if (updates.value !== undefined) {
+          if (typeof updates.value === 'string') type = 'string';
+          else if (typeof updates.value === 'number') type = 'number';
+          else if (typeof updates.value === 'boolean') type = 'boolean';
+          else if (Array.isArray(updates.value)) type = 'array';
+          else if (typeof updates.value === 'object' && updates.value !== null) type = 'object';
+        }
+        
+        const config = await prismaWithSystemConfig.systemConfig.create({
+          data: {
+            category,
+            key,
+            value: (updates.value !== undefined ? updates.value : null) as any,
+            type,
+            description: updates.description || null,
+            isEditable: updates.isEditable !== undefined ? updates.isEditable : true,
+            updatedBy: updatedBy || null,
+          },
+        });
+        
+        logger.info('System config auto-created', {
+          category,
+          key,
+          updatedBy,
+        });
+        
+        return config;
       }
       
       if (!existing.isEditable) {
