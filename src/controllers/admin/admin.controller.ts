@@ -13,6 +13,8 @@ import { z } from 'zod';
 import { prisma } from '../../infrastructure/database';
 import { logger } from '../../infrastructure/logger';
 import bcrypt from 'bcrypt';
+import { creditService } from '../../services/wallet/credit.service';
+import { vndWalletService } from '../../services/wallet/vnd-wallet.service';
 
 // Validation schemas
 const listUsersSchema = z.object({
@@ -55,6 +57,12 @@ const updateTenantAdminSchema = z.object({
   name: z.string().min(1).max(255).optional(),
   role: z.enum(['owner', 'admin']).optional(),
   isActive: z.boolean().optional(),
+});
+
+const topUpUserBalanceSchema = z.object({
+  vndAmount: z.number().int().nonnegative().optional(),
+  creditAmount: z.number().int().nonnegative().optional(),
+  reason: z.string().min(1).max(500).optional().default('Manual top-up by admin'),
 });
 
 /**
@@ -166,14 +174,58 @@ export async function listUsersHandler(
               tenants: true,
             },
           },
+          tenants: {
+            select: {
+              tenantId: true,
+              tenant: {
+                select: {
+                  id: true,
+                },
+              },
+            },
+            take: 1, // Lấy tenant đầu tiên để lấy balance/credit
+          },
         },
       }),
       prisma.user.count({ where }),
     ]);
 
+    // Enrich users với balance và credit từ tenant đầu tiên
+    const usersWithBalance = await Promise.all(
+      users.map(async (user) => {
+        let balance = 0;
+        let credit = 0;
+
+        // Lấy tenant đầu tiên của user
+        const firstTenant = user.tenants[0];
+        if (firstTenant?.tenantId) {
+          try {
+            // Lấy balance và credit từ tenant
+            balance = await vndWalletService.getBalance(firstTenant.tenantId);
+            credit = await creditService.getBalance(firstTenant.tenantId);
+          } catch (error) {
+            logger.warn('Failed to get balance/credit for user', {
+              userId: user.id,
+              tenantId: firstTenant.tenantId,
+              error: error instanceof Error ? error.message : error,
+            });
+            // Nếu lỗi, giữ balance = 0, credit = 0
+          }
+        }
+
+        // Return user data without tenants field
+        const { tenants, ...userData } = user;
+        return {
+          ...userData,
+          balance,
+          credit,
+        };
+      })
+    );
+
     return reply.status(200).send({
       success: true,
-      data: users,
+      data: usersWithBalance,
       meta: {
         page,
         limit,
@@ -1333,6 +1385,144 @@ export async function configTenantChatbotSettingsHandler(
     });
   } catch (error) {
     logger.error('Config tenant chatbot settings error:', error);
+    return reply.status(500).send({
+      error: {
+        message: error instanceof Error ? error.message : 'Internal server error',
+        statusCode: 500,
+      },
+    });
+  }
+}
+
+/**
+ * Top-up user balance (sp-admin only)
+ * WHY: Cho phép sp-admin nạp tiền trực tiếp cho user (qua tenant đầu tiên)
+ */
+export async function topUpUserBalanceHandler(
+  request: FastifyRequest<{
+    Params: { userId: string };
+    Body: z.infer<typeof topUpUserBalanceSchema>;
+  }>,
+  reply: FastifyReply
+) {
+  try {
+    const { userId } = request.params;
+    const body = topUpUserBalanceSchema.parse(request.body);
+
+    // Validate: phải có ít nhất một loại tiền để nạp
+    if (!body.vndAmount && !body.creditAmount) {
+      return reply.status(400).send({
+        error: {
+          message: 'Must provide either vndAmount or creditAmount',
+          statusCode: 400,
+        },
+      });
+    }
+
+    // Get user và tenant đầu tiên
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        tenants: {
+          take: 1,
+          include: {
+            tenant: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      return reply.status(404).send({
+        error: {
+          message: 'User not found',
+          statusCode: 404,
+        },
+      });
+    }
+
+    if (user.tenants.length === 0) {
+      return reply.status(400).send({
+        error: {
+          message: 'User has no tenant. Cannot top-up balance.',
+          statusCode: 400,
+        },
+      });
+    }
+
+    const tenant = user.tenants[0].tenant;
+
+    // Nạp VND nếu có
+    if (body.vndAmount && body.vndAmount > 0) {
+      await vndWalletService.addVND(
+        tenant.id,
+        body.vndAmount,
+        body.reason || 'Manual top-up by admin',
+        undefined,
+        {
+          adminUserId: userId,
+          adminAction: true,
+        }
+      );
+    }
+
+    // Nạp Credit nếu có
+    if (body.creditAmount && body.creditAmount > 0) {
+      await creditService.addCredit(
+        tenant.id,
+        body.creditAmount,
+        body.reason || 'Manual top-up by admin',
+        undefined,
+        {
+          adminUserId: userId,
+          adminAction: true,
+        }
+      );
+    }
+
+    // Lấy balance mới sau khi nạp
+    const newBalance = await vndWalletService.getBalance(tenant.id);
+    const newCredit = await creditService.getBalance(tenant.id);
+
+    logger.info('User balance topped up by admin', {
+      userId,
+      tenantId: tenant.id,
+      vndAmount: body.vndAmount || 0,
+      creditAmount: body.creditAmount || 0,
+      newBalance,
+      newCredit,
+    });
+
+    return reply.status(200).send({
+      success: true,
+      message: 'Balance topped up successfully',
+      data: {
+        userId,
+        tenantId: tenant.id,
+        tenantName: tenant.name,
+        vndAmount: body.vndAmount || 0,
+        creditAmount: body.creditAmount || 0,
+        newBalance,
+        newCredit,
+      },
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return reply.status(400).send({
+        error: {
+          message: 'Validation error',
+          statusCode: 400,
+          details: error.errors,
+        },
+      });
+    }
+
+    logger.error('Top-up user balance error:', error);
     return reply.status(500).send({
       error: {
         message: error instanceof Error ? error.message : 'Internal server error',
