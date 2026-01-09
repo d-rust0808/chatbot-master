@@ -60,7 +60,7 @@ export async function paymentRoutes(fastify: FastifyInstance) {
     fastify.get('/superadmin/all', getAllPaymentsHandler);
 
     // Manual complete payment (super admin only)
-    fastify.post('/admin/:id/manual-complete', manualCompletePaymentHandler);
+    fastify.post('/:id/manual-complete', manualCompletePaymentHandler);
   });
 }
 

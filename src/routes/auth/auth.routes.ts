@@ -17,7 +17,7 @@ import { authenticate } from '../../middleware/auth';
 export async function authRoutes(fastify: FastifyInstance) {
   // Public routes
   // NOTE: Register endpoint DISABLED - chỉ sp-admin tạo admin accounts qua admin API
-  // fastify.post('/register', registerHandler); // Disabled - use /admin/create-admin instead
+  // fastify.post('/register', registerHandler); // Disabled - use /sp-admin/create-admin instead
   
   fastify.post('/login', loginHandler);
   fastify.post('/refresh', refreshTokenHandler);

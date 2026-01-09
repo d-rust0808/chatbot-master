@@ -145,7 +145,7 @@ export async function loginHandler(
     if (error instanceof Error && error.message === 'Invalid credentials') {
       return reply.status(401).send({
         error: {
-          message: 'Invalid credentials',
+          message: 'Thông tin tài khoản mật khẩu không đúng',
           statusCode: 401,
         },
         api_version: 'v1',

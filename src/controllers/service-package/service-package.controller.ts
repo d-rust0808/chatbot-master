@@ -314,7 +314,7 @@ const updateServicePackageSchema = z.object({
 
 /**
  * Create service package (Super Admin only)
- * POST /api/v1/admin/service-packages
+ * POST /api/v1/sp-admin/service-packages
  */
 export async function createServicePackageHandler(
   request: FastifyRequest<{
@@ -354,7 +354,7 @@ export async function createServicePackageHandler(
 
 /**
  * Get all service packages (Admin view)
- * GET /api/v1/admin/service-packages?service=whatsapp&isActive=true
+ * GET /api/v1/sp-admin/service-packages?service=whatsapp&isActive=true
  */
 export async function getAllServicePackagesAdminHandler(
   request: FastifyRequest<{
@@ -390,7 +390,7 @@ export async function getAllServicePackagesAdminHandler(
 
 /**
  * Get service package by ID (Admin)
- * GET /api/v1/admin/service-packages/:id
+ * GET /api/v1/sp-admin/service-packages/:id
  */
 export async function getServicePackageByIdAdminHandler(
   request: FastifyRequest<{
@@ -419,7 +419,7 @@ export async function getServicePackageByIdAdminHandler(
 
 /**
  * Update service package (Super Admin only)
- * PUT /api/v1/admin/service-packages/:id
+ * PUT /api/v1/sp-admin/service-packages/:id
  */
 export async function updateServicePackageHandler(
   request: FastifyRequest<{
@@ -461,7 +461,7 @@ export async function updateServicePackageHandler(
 
 /**
  * Delete service package (Soft delete - Super Admin only)
- * DELETE /api/v1/admin/service-packages/:id
+ * DELETE /api/v1/sp-admin/service-packages/:id
  */
 export async function deleteServicePackageHandler(
   request: FastifyRequest<{

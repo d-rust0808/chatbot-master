@@ -789,7 +789,7 @@ export async function getAllPaymentsHandler(
 
 /**
  * Super Admin: Manual complete payment
- * POST /api/v1/sp-admin-payments/admin/:id/manual-complete
+ * POST /api/v1/sp-admin-payments/:id/manual-complete
  */
 export async function manualCompletePaymentHandler(
   request: FastifyRequest<{ Params: z.infer<typeof paymentIdParamSchema> }>,

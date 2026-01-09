@@ -36,7 +36,7 @@ const packageIdParamSchema = z.object({
 
 /**
  * Create service package (with image upload)
- * POST /api/v1/admin/service-packages
+ * POST /api/v1/sp-admin/service-packages
  * Content-Type: multipart/form-data
  * Fields: name, description, service, pricePerMonth, minDuration, image (file)
  */
@@ -343,7 +343,7 @@ export async function createServicePackageHandler(
 
 /**
  * Update service package
- * PUT /api/v1/admin/service-packages/:id
+ * PUT /api/v1/sp-admin/service-packages/:id
  */
 export async function updateServicePackageHandler(
   request: FastifyRequest<{
@@ -421,7 +421,7 @@ export async function updateServicePackageHandler(
 
 /**
  * Delete service package
- * DELETE /api/v1/admin/service-packages/:id
+ * DELETE /api/v1/sp-admin/service-packages/:id
  */
 export async function deleteServicePackageHandler(
   request: FastifyRequest<{
@@ -462,7 +462,7 @@ export async function deleteServicePackageHandler(
 
 /**
  * Get all service packages (admin view)
- * GET /api/v1/admin/service-packages?service=whatsapp&isActive=true
+ * GET /api/v1/sp-admin/service-packages?service=whatsapp&isActive=true
  */
 export async function getAllServicePackagesHandler(
   request: FastifyRequest<{
@@ -509,7 +509,7 @@ export async function getAllServicePackagesHandler(
 
 /**
  * Get service package by ID (Admin)
- * GET /api/v1/admin/service-packages/:id
+ * GET /api/v1/sp-admin/service-packages/:id
  */
 export async function getServicePackageByIdAdminHandler(
   request: FastifyRequest<{

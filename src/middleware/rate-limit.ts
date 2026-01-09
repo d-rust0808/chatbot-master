@@ -100,7 +100,7 @@ export async function rateLimitMiddleware(
     
     // SP-admin routes that don't have tenant context
     const adminRoutes = [
-      '/api/v1/admin',
+      '/api/v1/sp-admin',
     ];
     
     const isPublicRoute = publicRoutes.some(route => request.url.startsWith(route));

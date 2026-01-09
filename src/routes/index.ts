@@ -49,11 +49,11 @@ export async function setupRoutes(fastify: FastifyInstance) {
   // Register onboarding routes
   await fastify.register(onboardingRoutes, { prefix: '/onboarding' });
 
-  // Register admin routes
+  // Register admin routes (sp-admin)
   // WHY: Log route registration để debug
   const { logger } = await import('../infrastructure/logger');
-  logger.info('Registering admin routes', { prefix: '/admin' });
-  await fastify.register(adminRoutes, { prefix: '/admin' });
+  logger.info('Registering admin routes', { prefix: '/sp-admin' });
+  await fastify.register(adminRoutes, { prefix: '/sp-admin' });
   logger.info('Admin routes registered successfully');
 
   // Register catalog routes (tenant-level)
@@ -68,10 +68,10 @@ export async function setupRoutes(fastify: FastifyInstance) {
   // WHY: Webhook endpoint phải được đăng ký TRƯỚC payment routes
   // - Tránh bị ảnh hưởng bởi middleware auth trong payment routes
   // - Webhook là public endpoint, không cần authentication
-  fastify.post('/admin/payments/webhook/sepay', sepayWebhookHandler);
+  fastify.post('/sp-admin/payments/webhook/sepay', sepayWebhookHandler);
 
-  // Register payment routes (admin only)
-  await fastify.register(paymentRoutes, { prefix: '/admin/payments' });
+  // Register payment routes (sp-admin only)
+  await fastify.register(paymentRoutes, { prefix: '/sp-admin/payments' });
 
   // Register credit routes
   await fastify.register(creditRoutes, { prefix: '/credits' });
