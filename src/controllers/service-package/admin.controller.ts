@@ -58,9 +58,11 @@ export async function createServicePackageHandler(
     }
 
     // Log request for debugging
-    logger.debug('Create service package request received', {
+    logger.info('Create service package handler called', {
       contentType: request.headers['content-type'],
       hasMultipart: request.isMultipart(),
+      url: request.url,
+      method: request.method,
     });
 
     // Parse multipart form data
@@ -118,9 +120,14 @@ export async function createServicePackageHandler(
       });
     }
 
-    logger.debug('Parsed form data', {
+    logger.info('Parsed form data successfully', {
       formDataKeys: Object.keys(formData),
       hasImage: !!imageFile,
+      formData: {
+        name: formData.name,
+        service: formData.service,
+        pricePerMonth: formData.pricePerMonth,
+      },
     });
 
     // Extract form fields
@@ -131,7 +138,7 @@ export async function createServicePackageHandler(
     const minDuration = parseInt(formData.minDuration || '1', 10);
     const sortOrder = parseInt(formData.sortOrder || '0', 10);
 
-    logger.debug('Extracted form fields', {
+    logger.info('Extracted form fields', {
       name,
       description,
       service,
@@ -174,6 +181,12 @@ export async function createServicePackageHandler(
     }
 
     // Create package
+    logger.info('Creating service package in database', {
+      name,
+      service,
+      pricePerMonth,
+    });
+    
     const package_ = await createServicePackage({
       name,
       description,
@@ -184,11 +197,23 @@ export async function createServicePackageHandler(
       sortOrder,
     });
 
-    return reply.status(201).send({
+    logger.info('Service package created successfully', {
+      packageId: package_.id,
+      name: package_.name,
+    });
+
+    const response = {
       success: true,
       message: 'Service package created successfully',
       data: package_,
+    };
+
+    logger.info('Sending success response', {
+      statusCode: 201,
+      packageId: package_.id,
     });
+
+    return reply.status(201).send(response);
   } catch (error) {
     logger.error('Create service package error:', {
       error: error instanceof Error ? error.message : String(error),
@@ -198,15 +223,34 @@ export async function createServicePackageHandler(
         contentType: request.headers['content-type'],
         authorization: request.headers.authorization ? 'Bearer ***' : 'missing',
       },
+      url: request.url,
+      method: request.method,
     });
-    return reply.status(400).send({
+
+    const errorResponse = {
       error: {
         message: error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 400,
+        statusCode: 500,
         api_version: 'v1',
         provider: 'cdudu',
       },
+    };
+
+    logger.info('Sending error response', {
+      statusCode: 500,
+      errorMessage: errorResponse.error.message,
     });
+
+    // Đảm bảo response luôn được gửi
+    try {
+      return reply.status(500).send(errorResponse);
+    } catch (sendError) {
+      logger.error('Failed to send error response', {
+        error: sendError instanceof Error ? sendError.message : String(sendError),
+      });
+      // Nếu không thể gửi response, ít nhất log ra
+      throw error;
+    }
   }
 }
 

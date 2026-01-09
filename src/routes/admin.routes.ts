@@ -120,6 +120,8 @@ export async function adminRoutes(fastify: FastifyInstance) {
   // WHY: Log request để debug khi không nhận được request
   fastify.post('/service-packages', async (request, reply) => {
     const { logger } = await import('../infrastructure/logger');
+    const startTime = Date.now();
+    
     logger.info('POST /service-packages route matched and handler called', {
       method: request.method,
       url: request.url,
@@ -129,7 +131,23 @@ export async function adminRoutes(fastify: FastifyInstance) {
       isMultipart: request.isMultipart(),
       origin: request.headers.origin,
     });
-    return createServicePackageHandler(request, reply);
+    
+    try {
+      const result = await createServicePackageHandler(request, reply);
+      const duration = Date.now() - startTime;
+      logger.info('POST /service-packages completed', {
+        duration: `${duration}ms`,
+        statusCode: reply.statusCode,
+      });
+      return result;
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      logger.error('POST /service-packages failed', {
+        duration: `${duration}ms`,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
   });
   
   // WHY: Test endpoint để verify route registration
