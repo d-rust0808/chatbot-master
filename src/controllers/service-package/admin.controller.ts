@@ -19,6 +19,17 @@ import {
 import { logger } from '../../infrastructure/logger';
 import type { AuthenticatedRequest } from '../../types/auth';
 
+// Type for multipart part
+interface MultipartPart {
+  type: 'file' | 'field';
+  fieldname: string;
+  value?: string;
+  filename?: string;
+  mimetype?: string;
+  encoding?: string;
+  toBuffer?: () => Promise<Buffer>;
+}
+
 const packageIdParamSchema = z.object({
   id: z.string().min(1),
 });
@@ -46,18 +57,71 @@ export async function createServicePackageHandler(
       });
     }
 
+    // Log request for debugging
+    logger.debug('Create service package request received', {
+      contentType: request.headers['content-type'],
+      hasMultipart: request.isMultipart(),
+    });
+
     // Parse multipart form data
-    const parts = request.parts();
-    const formData: Record<string, any> = {};
+    let formData: Record<string, any> = {};
     let imageFile: any = null;
 
-    for await (const part of parts) {
-      if (part.type === 'file') {
-        imageFile = part;
-      } else {
-        formData[part.fieldname] = part.value;
+    try {
+      // Check if request is multipart
+      if (!request.isMultipart()) {
+        logger.warn('Request is not multipart', {
+          contentType: request.headers['content-type'],
+        });
+        return reply.status(400).send({
+          error: {
+            message: 'Content-Type must be multipart/form-data',
+            statusCode: 400,
+          },
+        });
       }
+
+      const parts = request.parts();
+      
+      for await (const part of parts) {
+        const multipartPart = part as MultipartPart;
+        
+        if (multipartPart.type === 'file') {
+          imageFile = multipartPart;
+          logger.debug('Image file received', {
+            filename: multipartPart.filename,
+            mimetype: multipartPart.mimetype,
+            encoding: multipartPart.encoding,
+          });
+        } else {
+          formData[multipartPart.fieldname] = multipartPart.value;
+          logger.debug('Form field received', {
+            fieldname: multipartPart.fieldname,
+            value: typeof multipartPart.value === 'string' ? multipartPart.value.substring(0, 100) : multipartPart.value,
+          });
+        }
+      }
+    } catch (multipartError) {
+      logger.error('Multipart parsing error:', {
+        error: multipartError instanceof Error ? multipartError.message : String(multipartError),
+        stack: multipartError instanceof Error ? multipartError.stack : undefined,
+        contentType: request.headers['content-type'],
+      });
+      return reply.status(400).send({
+        error: {
+          message: 'Failed to parse multipart form data',
+          statusCode: 400,
+          details: multipartError instanceof Error ? multipartError.message : String(multipartError),
+        },
+        api_version: 'v1',
+        provider: 'cdudu',
+      });
     }
+
+    logger.debug('Parsed form data', {
+      formDataKeys: Object.keys(formData),
+      hasImage: !!imageFile,
+    });
 
     // Extract form fields
     const name = formData.name;
@@ -67,12 +131,32 @@ export async function createServicePackageHandler(
     const minDuration = parseInt(formData.minDuration || '1', 10);
     const sortOrder = parseInt(formData.sortOrder || '0', 10);
 
+    logger.debug('Extracted form fields', {
+      name,
+      description,
+      service,
+      pricePerMonth,
+      minDuration,
+      sortOrder,
+    });
+
     // Validate required fields
     if (!name || !service || !pricePerMonth || pricePerMonth <= 0) {
+      logger.warn('Validation failed: Missing required fields', {
+        hasName: !!name,
+        hasService: !!service,
+        pricePerMonth,
+        formData,
+      });
       return reply.status(400).send({
         error: {
           message: 'Missing required fields: name, service, pricePerMonth',
           statusCode: 400,
+          details: {
+            name: name || 'missing',
+            service: service || 'missing',
+            pricePerMonth: pricePerMonth || 'missing or invalid',
+          },
         },
       });
     }
@@ -106,11 +190,21 @@ export async function createServicePackageHandler(
       data: package_,
     });
   } catch (error) {
-    logger.error('Create service package error:', error);
+    logger.error('Create service package error:', {
+      error: error instanceof Error ? error.message : String(error),
+      errorType: error instanceof Error ? error.constructor.name : typeof error,
+      stack: error instanceof Error ? error.stack : undefined,
+      requestHeaders: {
+        contentType: request.headers['content-type'],
+        authorization: request.headers.authorization ? 'Bearer ***' : 'missing',
+      },
+    });
     return reply.status(400).send({
       error: {
         message: error instanceof Error ? error.message : 'Internal server error',
         statusCode: 400,
+        api_version: 'v1',
+        provider: 'cdudu',
       },
     });
   }
