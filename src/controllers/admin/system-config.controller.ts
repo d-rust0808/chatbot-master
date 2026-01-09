@@ -124,7 +124,7 @@ export async function createSystemConfigHandler(
 ) {
   try {
     const authRequest = request as AuthenticatedRequest;
-    const userId = authRequest.user?.id;
+    const userId = authRequest.user?.userId;
     
     const body = createSystemConfigSchema.parse(request.body);
     
@@ -188,7 +188,7 @@ export async function updateSystemConfigHandler(
 ) {
   try {
     const authRequest = request as AuthenticatedRequest;
-    const userId = authRequest.user?.id;
+    const userId = authRequest.user?.userId;
     
     const { category, key } = request.params;
     const body = updateSystemConfigSchema.parse(request.body);
