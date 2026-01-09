@@ -50,7 +50,11 @@ export async function setupRoutes(fastify: FastifyInstance) {
   await fastify.register(onboardingRoutes, { prefix: '/onboarding' });
 
   // Register admin routes
+  // WHY: Log route registration để debug
+  const { logger } = await import('../infrastructure/logger');
+  logger.info('Registering admin routes', { prefix: '/admin' });
   await fastify.register(adminRoutes, { prefix: '/admin' });
+  logger.info('Admin routes registered successfully');
 
   // Register catalog routes (tenant-level)
   await fastify.register(catalogRoutes);

@@ -41,17 +41,34 @@ import multipart from '@fastify/multipart';
  * Admin routes plugin
  */
 export async function adminRoutes(fastify: FastifyInstance) {
+  const { logger } = await import('../infrastructure/logger');
+  logger.info('Admin routes plugin initialized');
+  
   // Register multipart for file uploads
   await fastify.register(multipart, {
     limits: {
       fileSize: 5 * 1024 * 1024, // 5MB max
     },
   });
+  logger.info('Multipart plugin registered');
 
   // Create admin endpoint (public, for first-time setup)
   fastify.post('/create-admin', createAdminHandler);
 
   // All other routes require authentication + super admin role
+  // WHY: Log all admin requests để debug routing issues
+  fastify.addHook('onRequest', async (request) => {
+    const { logger } = await import('../infrastructure/logger');
+    logger.info('Admin route request', {
+      method: request.method,
+      url: request.url,
+      path: request.routerPath,
+      contentType: request.headers['content-type'],
+      hasAuth: !!request.headers.authorization,
+      origin: request.headers.origin,
+    });
+  });
+  
   fastify.addHook('preHandler', authenticate);
   fastify.addHook('preHandler', requireSuperAdmin);
 
@@ -100,7 +117,31 @@ export async function adminRoutes(fastify: FastifyInstance) {
   // GET by ID - uses service-package controller
   fastify.get('/service-packages/:id', getServicePackageByIdAdminHandler);
   // POST create - uses admin controller (supports multipart/form-data for image)
-  fastify.post('/service-packages', createServicePackageHandler);
+  // WHY: Log request để debug khi không nhận được request
+  fastify.post('/service-packages', async (request, reply) => {
+    const { logger } = await import('../infrastructure/logger');
+    logger.info('POST /service-packages route matched and handler called', {
+      method: request.method,
+      url: request.url,
+      routerPath: request.routerPath,
+      contentType: request.headers['content-type'],
+      hasAuth: !!request.headers.authorization,
+      isMultipart: request.isMultipart(),
+      origin: request.headers.origin,
+    });
+    return createServicePackageHandler(request, reply);
+  });
+  
+  // WHY: Test endpoint để verify route registration
+  fastify.get('/service-packages/test', async (request, reply) => {
+    const { logger } = await import('../infrastructure/logger');
+    logger.info('Test endpoint called', { url: request.url });
+    return reply.send({ 
+      success: true, 
+      message: 'Admin routes are working',
+      timestamp: new Date().toISOString(),
+    });
+  });
   // PUT update - uses admin controller (supports multipart/form-data for image)
   fastify.put('/service-packages/:id', updateServicePackageHandler);
   // DELETE - uses admin controller

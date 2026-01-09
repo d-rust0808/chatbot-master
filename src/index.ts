@@ -61,6 +61,18 @@ app.register(fastifyStatic, {
 // Simple CORS cho dev: cho phép tất cả origin
 // WARNING: Không dùng cấu hình này cho production
 app.addHook('onRequest', async (request, reply) => {
+  // WHY: Log tất cả requests để debug routing issues
+  logger.info('Incoming request', {
+    method: request.method,
+    url: request.url,
+    path: request.routerPath || request.url,
+    contentType: request.headers['content-type'],
+    hasAuth: !!request.headers.authorization,
+    origin: request.headers.origin,
+    userAgent: request.headers['user-agent']?.substring(0, 50),
+    ip: request.ip,
+  });
+
   reply.header('Access-Control-Allow-Origin', '*');
   reply.header('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
   reply.header(
@@ -70,6 +82,7 @@ app.addHook('onRequest', async (request, reply) => {
 
   if (request.method === 'OPTIONS') {
     // Preflight request → trả về luôn
+    logger.debug('OPTIONS preflight request', { url: request.url });
     reply.status(204).send();
     return;
   }
