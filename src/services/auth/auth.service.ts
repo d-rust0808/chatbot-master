@@ -126,12 +126,23 @@ export async function login(data: LoginRequest): Promise<AuthResponse> {
   });
 
   if (!user) {
+    logger.warn('Login attempt: User not found', {
+      email: data.email,
+      passwordLength: data.password?.length || 0,
+      // Security: Không log password, chỉ log length để debug
+    });
     throw new Error('Invalid credentials');
   }
 
   // Verify password
   const isValid = await verifyPassword(data.password, user.password);
   if (!isValid) {
+    logger.warn('Login attempt: Invalid password', {
+      email: data.email,
+      userId: user.id,
+      passwordLength: data.password?.length || 0,
+      // Security: Không log password thực
+    });
     throw new Error('Invalid credentials');
   }
 
