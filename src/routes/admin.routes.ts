@@ -45,6 +45,12 @@ import {
   getSuspiciousIPsHandler,
 } from '../controllers/admin/ai-log.controller';
 import {
+  listAccessLogsHandler,
+  getSuspiciousIPsHandler as getAccessLogSuspiciousIPsHandler,
+  getIPDetailsHandler,
+  banIPFromSuspiciousHandler,
+} from '../controllers/admin/access-log.controller';
+import {
   addToBlacklistHandler,
   removeFromBlacklistHandler,
   getBlacklistHandler,
@@ -262,7 +268,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
   // Access Logs (sp-admin only)
   // WHY: SP-Admin xem access logs và suspicious IPs
   fastify.get('/access-logs', listAccessLogsHandler);
-  fastify.get('/access-logs/suspicious', getSuspiciousIPsHandler);
+  fastify.get('/access-logs/suspicious', getAccessLogSuspiciousIPsHandler);
   fastify.get('/access-logs/ip/:ipAddress', getIPDetailsHandler);
   fastify.post('/access-logs/ip/:ipAddress/ban', banIPFromSuspiciousHandler);
 }
