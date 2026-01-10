@@ -92,8 +92,11 @@ export async function setupRoutes(fastify: FastifyInstance) {
   // Register credit routes
   await fastify.register(creditRoutes, { prefix: '/credits' });
 
-  // Register service package routes
-  await fastify.register(servicePackageRoutes, { prefix: '/service-packages' });
+  // Register service package routes (tenant admin)
+  // WHY: Thêm prefix /admin để phân biệt với sp-admin routes
+  // - Tenant admin: /admin/service-packages
+  // - SP-admin: /sp-admin/service-packages
+  await fastify.register(servicePackageRoutes, { prefix: '/admin/service-packages' });
 
   // Health check
   fastify.get('/health', async () => {
