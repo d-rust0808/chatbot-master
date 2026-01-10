@@ -32,9 +32,9 @@ export function formatAnalyticsResponse<T>(
   additionalFields?: Record<string, unknown>
 ): StandardApiResponse<T> {
   const response: StandardApiResponse<T> = {
-    data,
     status,
     message,
+    data,
     api_version: 'v1',
     provider: 'cdudu',
   };
@@ -61,9 +61,9 @@ export function formatSuccessResponse<T>(
   meta?: Record<string, unknown>
 ): StandardApiResponse<T> {
   const response: StandardApiResponse<T> = {
-    data,
     status,
     message,
+    data,
     api_version: 'v1',
     provider: 'cdudu',
   };
