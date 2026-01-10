@@ -384,7 +384,8 @@ export async function getPendingPaymentHandler(
       );
     }
 
-    const payment = await (prisma as any).payment.findFirst({
+    // Tìm payment pending (chưa hết hạn)
+    let payment = await (prisma as any).payment.findFirst({
       where: {
         userId,
         tenantId,
@@ -394,14 +395,41 @@ export async function getPendingPaymentHandler(
       orderBy: { createdAt: 'desc' },
     });
 
+    // Nếu không có payment pending, kiểm tra xem có payment đã hết hạn không
     if (!payment) {
-      return reply.status(404).send(
-        formatErrorResponse(
-          'NOT_FOUND_ERROR',
-          'No pending payment found',
-          404
-        )
+      const expiredPending = await (prisma as any).payment.findFirst({
+        where: {
+          userId,
+          tenantId,
+          status: 'pending',
+          expiresAt: { lte: new Date() },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      if (expiredPending) {
+        // Tự động expire payment đã hết hạn
+        await (prisma as any).payment.update({
+          where: { id: expiredPending.id },
+          data: { status: 'expired' },
+        });
+        
+        // Trả về null thay vì 404
+        const formattedResponse = formatSuccessResponse(
+          null,
+          200,
+          'No active pending payment found. Previous payment has expired.'
+        );
+        return reply.status(200).send(formattedResponse);
+      }
+
+      // Không có payment pending nào - trả về 200 với null
+      const formattedResponse = formatSuccessResponse(
+        null,
+        200,
+        'No pending payment found'
       );
+      return reply.status(200).send(formattedResponse);
     }
 
     const formattedResponse = formatSuccessResponse(
