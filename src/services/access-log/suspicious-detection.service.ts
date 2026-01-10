@@ -64,6 +64,34 @@ export interface SuspiciousIP {
 }
 
 /**
+ * Check if AccessLog model is available
+ * WHY: Detect if Prisma client has been regenerated after schema changes
+ */
+async function checkAccessLogModelAvailable(): Promise<boolean> {
+  try {
+    // Try to access the model - if it doesn't exist, this will throw
+    await (prismaWithAccessLog as any).accessLog.findFirst({
+      take: 1,
+    });
+    return true;
+  } catch (error: any) {
+    // Check for common Prisma errors indicating missing model
+    const errorMessage = error?.message?.toLowerCase() || '';
+    if (
+      errorMessage.includes('accesslog') ||
+      errorMessage.includes('does not exist') ||
+      errorMessage.includes('unknown model') ||
+      errorMessage.includes('prisma.') ||
+      error?.code === 'P2001'
+    ) {
+      return false;
+    }
+    // Other errors might be database connection issues, assume model exists
+    return true;
+  }
+}
+
+/**
  * Suspicious Detection Service
  */
 export class SuspiciousDetectionService {
@@ -78,6 +106,15 @@ export class SuspiciousDetectionService {
     minRiskScore?: number; // Minimum risk score to include (default: 30)
   }): Promise<SuspiciousIP[]> {
     try {
+      // Check if model is available first
+      const modelAvailable = await checkAccessLogModelAvailable();
+      if (!modelAvailable) {
+        logger.error('AccessLog model not found in Prisma client', {
+          hint: 'Run: npx prisma generate && npx prisma migrate deploy',
+        });
+        throw new Error('AccessLog model not available. Please run: npx prisma generate && npx prisma migrate deploy');
+      }
+
       const config = { ...DEFAULT_CONFIG, ...options.config };
       const minRiskScore = options.minRiskScore || 30;
       
@@ -85,7 +122,6 @@ export class SuspiciousDetectionService {
       const startDate = options.startDate || new Date(endDate.getTime() - config.timeWindowMinutes * 60 * 1000);
 
       // Get IP statistics
-      // WHY: Check if accessLog model exists (handle case when Prisma client not regenerated)
       let ipStats: any[];
       try {
         ipStats = await prismaWithAccessLog.accessLog.groupBy({
@@ -106,12 +142,17 @@ export class SuspiciousDetectionService {
         });
       } catch (error: any) {
         // Check if error is about missing model
-        if (error?.message?.includes('accessLog') || error?.message?.includes('does not exist')) {
+        const errorMessage = error?.message?.toLowerCase() || '';
+        if (
+          errorMessage.includes('accesslog') ||
+          errorMessage.includes('does not exist') ||
+          errorMessage.includes('unknown model')
+        ) {
           logger.error('AccessLog model not found in Prisma client', {
             error: error.message,
-            hint: 'Run: npx prisma generate',
+            hint: 'Run: npx prisma generate && npx prisma migrate deploy',
           });
-          throw new Error('AccessLog model not available. Please run: npx prisma generate');
+          throw new Error('AccessLog model not available. Please run: npx prisma generate && npx prisma migrate deploy');
         }
         throw error;
       }
@@ -183,6 +224,12 @@ export class SuspiciousDetectionService {
     statusCodes: Record<string, number>;
     paths: string[];
   }> {
+    // Check if model is available
+    const modelAvailable = await checkAccessLogModelAvailable();
+    if (!modelAvailable) {
+      throw new Error('AccessLog model not available. Please run: npx prisma generate && npx prisma migrate deploy');
+    }
+
     const logs = await prismaWithAccessLog.accessLog.findMany({
       where: {
         ipAddress,
