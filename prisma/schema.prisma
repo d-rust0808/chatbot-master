@@ -724,3 +724,30 @@ model IPWhitelist {
   @@index([expiresAt])
   @@map("ip_whitelist")
 }
+
+// Access Log
+// WHY: Log tất cả HTTP requests để track IP access patterns và detect suspicious activity
+model AccessLog {
+  id          String   @id @default(cuid())
+  ipAddress   String   // Client IP address
+  method      String   // HTTP method (GET, POST, etc.)
+  url         String   // Full URL
+  path        String   // Request path (without query)
+  statusCode  Int?     // HTTP status code
+  responseTime Int?     // Response time in milliseconds
+  userAgent   String?  // User agent string
+  referer     String?  // Referer header
+  tenantId    String?  // Tenant ID (if authenticated)
+  userId      String?  // User ID (if authenticated)
+  requestBody Json?    // Request body (optional, for debugging)
+  error       String?  // Error message (if failed)
+  createdAt   DateTime @default(now())
+
+  @@index([ipAddress, createdAt])
+  @@index([tenantId, createdAt])
+  @@index([userId, createdAt])
+  @@index([statusCode, createdAt])
+  @@index([path, createdAt])
+  @@index([createdAt])
+  @@map("access_logs")
+}

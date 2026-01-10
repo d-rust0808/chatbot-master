@@ -15,6 +15,7 @@ import { errorHandler } from './infrastructure/error-handler';
 import { tenantMiddleware } from './middleware/tenant';
 import { rateLimitMiddleware } from './middleware/rate-limit';
 import { checkIPMiddleware } from './middleware/ip-check';
+import { accessLogMiddleware, accessLogResponseHook } from './middleware/access-log';
 import { performHealthCheck } from './infrastructure/health-check';
 import { webSocketServer } from './infrastructure/websocket';
 import { bootstrapAdmin } from './infrastructure/bootstrap-admin';
@@ -52,6 +53,12 @@ app.addHook('preSerialization', (_request, _reply, payload, done) => {
 
 // Register middleware
 app.register(tenantMiddleware);
+
+// Register access log middleware (early, để store context)
+app.addHook('onRequest', accessLogMiddleware);
+
+// Register access log response hook (log sau khi response sent)
+app.addHook('onSend', accessLogResponseHook);
 
 // Serve static files (uploads)
 app.register(fastifyStatic, {

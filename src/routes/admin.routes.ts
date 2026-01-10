@@ -258,5 +258,12 @@ export async function adminRoutes(fastify: FastifyInstance) {
   // Ban/Unban (aliases)
   fastify.post('/ip-management/ban', banIPHandler);
   fastify.delete('/ip-management/ban/:ipAddress', unbanIPHandler);
+
+  // Access Logs (sp-admin only)
+  // WHY: SP-Admin xem access logs và suspicious IPs
+  fastify.get('/access-logs', listAccessLogsHandler);
+  fastify.get('/access-logs/suspicious', getSuspiciousIPsHandler);
+  fastify.get('/access-logs/ip/:ipAddress', getIPDetailsHandler);
+  fastify.post('/access-logs/ip/:ipAddress/ban', banIPFromSuspiciousHandler);
 }
 
