@@ -54,12 +54,6 @@ app.addHook('preSerialization', (_request, _reply, payload, done) => {
 // Register middleware
 app.register(tenantMiddleware);
 
-// Register access log middleware (early, để store context)
-app.addHook('onRequest', accessLogMiddleware);
-
-// Register access log response hook (log sau khi response sent)
-app.addHook('onSend', accessLogResponseHook);
-
 // Serve static files (uploads)
 app.register(fastifyStatic, {
   root: path.join(process.cwd(), 'public'),
@@ -69,7 +63,22 @@ app.register(fastifyStatic, {
 // Simple CORS cho dev: cho phép tất cả origin
 // WARNING: Không dùng cấu hình này cho production
 app.addHook('onRequest', async (request, reply) => {
-  // WHY: Log tất cả requests để debug routing issues
+  // Set CORS headers first (cho tất cả requests)
+  reply.header('Access-Control-Allow-Origin', '*');
+  reply.header('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+  reply.header(
+    'Access-Control-Allow-Headers',
+    'Content-Type, Authorization, X-Tenant-Id, X-Tenant-Slug, x-tenant-slug, X-Requested-With'
+  );
+  reply.header('Access-Control-Max-Age', '86400'); // 24 hours
+
+  // Handle OPTIONS preflight request (phải return sớm)
+  if (request.method === 'OPTIONS') {
+    logger.debug('OPTIONS preflight request', { url: request.url });
+    return reply.status(204).send();
+  }
+
+  // WHY: Log tất cả requests để debug routing issues (skip OPTIONS)
   logger.info('Incoming request', {
     method: request.method,
     url: request.url,
@@ -81,20 +90,6 @@ app.addHook('onRequest', async (request, reply) => {
     ip: request.ip,
   });
 
-  reply.header('Access-Control-Allow-Origin', '*');
-  reply.header('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
-  reply.header(
-    'Access-Control-Allow-Headers',
-    'Content-Type, Authorization, X-Tenant-Id, X-Tenant-Slug, x-tenant-slug, X-Requested-With'
-  );
-
-  if (request.method === 'OPTIONS') {
-    // Preflight request → trả về luôn
-    logger.debug('OPTIONS preflight request', { url: request.url });
-    reply.status(204).send();
-    return;
-  }
-
   // IP check (block blacklisted IPs early)
   await checkIPMiddleware(request, reply);
   if (reply.sent) {
@@ -104,6 +99,12 @@ app.addHook('onRequest', async (request, reply) => {
   // Rate limiting (sau khi set CORS headers)
   await rateLimitMiddleware(request, reply);
 });
+
+// Register access log middleware (sau CORS, để không block OPTIONS)
+app.addHook('onRequest', accessLogMiddleware);
+
+// Register access log response hook (log sau khi response sent)
+app.addHook('onSend', accessLogResponseHook);
 
 // Register routes
 app.register(setupRoutes, { prefix: '/api/v1' });
