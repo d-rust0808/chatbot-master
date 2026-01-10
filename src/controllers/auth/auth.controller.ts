@@ -115,6 +115,7 @@ export async function loginHandler(
           vndBalance: 0,
           creditBalance: 0,
         },
+        subscriptions: result.subscriptions ?? [],
       },
       200,
       'Đăng nhập thành công'

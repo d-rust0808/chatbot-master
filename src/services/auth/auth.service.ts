@@ -16,6 +16,7 @@ import { logger } from '../../infrastructure/logger';
 import { redis } from '../../infrastructure/redis';
 import { vndWalletService } from '../wallet/vnd-wallet.service';
 import { creditService } from '../wallet/credit.service';
+import { getActiveSubscriptionsForSidebar } from '../service-package/service-package.service';
 import type { LoginRequest, RegisterRequest, AuthResponse, JWTPayload } from '../../types/auth';
 
 // Constants
@@ -185,6 +186,7 @@ export async function login(data: LoginRequest): Promise<AuthResponse> {
   
   let vndBalance = 0;
   let creditBalance = 0;
+  let subscriptions: any[] = [];
   
   if (primaryTenant) {
     try {
@@ -208,6 +210,19 @@ export async function login(data: LoginRequest): Promise<AuthResponse> {
       // Continue with 0 balance if wallet doesn't exist yet
       creditBalance = 0;
     }
+    
+    // Get active subscriptions for primary tenant
+    // WHY: Frontend cần subscriptions để hiển thị trong sidebar
+    try {
+      subscriptions = await getActiveSubscriptionsForSidebar(primaryTenant.tenant.id);
+    } catch (error) {
+      logger.warn('Failed to get subscriptions', {
+        tenantId: primaryTenant.tenant.id,
+        error: error instanceof Error ? error.message : error,
+      });
+      // Continue with empty array if subscriptions query fails
+      subscriptions = [];
+    }
   }
 
   return {
@@ -229,6 +244,7 @@ export async function login(data: LoginRequest): Promise<AuthResponse> {
       vndBalance,
       creditBalance,
     },
+    subscriptions,
   };
 }
 

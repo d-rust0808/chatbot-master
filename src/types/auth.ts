@@ -65,5 +65,15 @@ export interface AuthResponse {
     vndBalance: number;
     creditBalance: number;
   };
+  subscriptions?: {
+    id: string;
+    service: string;
+    serviceName: string;
+    imageUrl: string | null;
+    startDate: Date;
+    endDate: Date;
+    daysRemaining: number;
+    isActive: boolean;
+  }[];
 }
 
