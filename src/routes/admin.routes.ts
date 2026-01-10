@@ -51,6 +51,15 @@ import {
   banIPFromSuspiciousHandler,
 } from '../controllers/admin/access-log.controller';
 import {
+  getOverviewHandler,
+  getGrowthHandler,
+  getRevenueHandler,
+  getAIUsageHandler,
+  getPlatformsHandler,
+  getTopHandler,
+  getHealthHandler,
+} from '../controllers/admin/analytics.controller';
+import {
   addToBlacklistHandler,
   removeFromBlacklistHandler,
   getBlacklistHandler,
@@ -271,5 +280,15 @@ export async function adminRoutes(fastify: FastifyInstance) {
   fastify.get('/access-logs/suspicious', getAccessLogSuspiciousIPsHandler);
   fastify.get('/access-logs/ip/:ipAddress', getIPDetailsHandler);
   fastify.post('/access-logs/ip/:ipAddress/ban', banIPFromSuspiciousHandler);
+
+  // Analytics (sp-admin only)
+  // WHY: SP-Admin analytics dashboard
+  fastify.get('/analytics/overview', getOverviewHandler);
+  fastify.get('/analytics/growth', getGrowthHandler);
+  fastify.get('/analytics/revenue', getRevenueHandler);
+  fastify.get('/analytics/ai-usage', getAIUsageHandler);
+  fastify.get('/analytics/platforms', getPlatformsHandler);
+  fastify.get('/analytics/top', getTopHandler);
+  fastify.get('/analytics/health', getHealthHandler);
 }
 
