@@ -114,6 +114,8 @@ export async function getSuspiciousIPsHandler(
   } catch (error) {
     logger.error('Failed to get suspicious IPs', {
       error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      query: request.query,
     });
 
     if (error instanceof z.ZodError) {
@@ -128,6 +130,7 @@ export async function getSuspiciousIPsHandler(
     return reply.status(500).send({
       error: {
         message: 'Failed to get suspicious IPs',
+        details: error instanceof Error ? error.message : String(error),
       },
     });
   }

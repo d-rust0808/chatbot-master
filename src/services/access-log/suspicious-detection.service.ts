@@ -8,9 +8,10 @@
  */
 
 import { prisma } from '../../infrastructure/database';
+import { logger } from '../../infrastructure/logger';
 import type { PrismaClient } from '@prisma/client';
 
-// Type assertion
+// Type assertion để fix TypeScript language server cache issue
 const prismaWithAccessLog = prisma as PrismaClient & {
   accessLog: {
     findMany: (args: any) => Promise<any>;
@@ -76,71 +77,94 @@ export class SuspiciousDetectionService {
     endDate?: Date;
     minRiskScore?: number; // Minimum risk score to include (default: 30)
   }): Promise<SuspiciousIP[]> {
-    const config = { ...DEFAULT_CONFIG, ...options.config };
-    const minRiskScore = options.minRiskScore || 30;
-    
-    const endDate = options.endDate || new Date();
-    const startDate = options.startDate || new Date(endDate.getTime() - config.timeWindowMinutes * 60 * 1000);
+    try {
+      const config = { ...DEFAULT_CONFIG, ...options.config };
+      const minRiskScore = options.minRiskScore || 30;
+      
+      const endDate = options.endDate || new Date();
+      const startDate = options.startDate || new Date(endDate.getTime() - config.timeWindowMinutes * 60 * 1000);
 
-    // Get IP statistics
-    const ipStats = await prismaWithAccessLog.accessLog.groupBy({
-      by: ['ipAddress'],
-      where: {
-        ipAddress: { not: null },
-        createdAt: {
-          gte: startDate,
-          lte: endDate,
-        },
-      },
-      _count: {
-        id: true,
-      },
-      _max: {
-        createdAt: true,
-      },
-    });
-
-    // Analyze each IP
-    const suspiciousIPs: SuspiciousIP[] = [];
-
-    for (const stat of ipStats as any[]) {
-      const ipAddress = stat.ipAddress!;
-      const requestCount = stat._count.id;
-      const minutes = (endDate.getTime() - startDate.getTime()) / (60 * 1000);
-      const requestsPerMinute = requestCount / minutes;
-
-      // Get detailed stats for this IP
-      const details = await this.getIPDetails(ipAddress, { startDate, endDate });
-
-      // Calculate risk score
-      const riskScore = this.calculateRiskScore(details, config);
-
-      // Skip if risk score too low
-      if (riskScore < minRiskScore) {
-        continue;
+      // Get IP statistics
+      // WHY: Check if accessLog model exists (handle case when Prisma client not regenerated)
+      let ipStats: any[];
+      try {
+        ipStats = await prismaWithAccessLog.accessLog.groupBy({
+          by: ['ipAddress'],
+          where: {
+            ipAddress: { not: null },
+            createdAt: {
+              gte: startDate,
+              lte: endDate,
+            },
+          },
+          _count: {
+            id: true,
+          },
+          _max: {
+            createdAt: true,
+          },
+        });
+      } catch (error: any) {
+        // Check if error is about missing model
+        if (error?.message?.includes('accessLog') || error?.message?.includes('does not exist')) {
+          logger.error('AccessLog model not found in Prisma client', {
+            error: error.message,
+            hint: 'Run: npx prisma generate',
+          });
+          throw new Error('AccessLog model not available. Please run: npx prisma generate');
+        }
+        throw error;
       }
 
-      // Identify suspicious factors
-      const suspiciousFactors = this.identifySuspiciousFactors(details, config);
+      // Analyze each IP
+      const suspiciousIPs: SuspiciousIP[] = [];
 
-      // Determine recommendation
-      const recommendation = this.getRecommendation(riskScore, suspiciousFactors);
+      for (const stat of ipStats as any[]) {
+        const ipAddress = stat.ipAddress!;
+        const requestCount = stat._count.id;
+        const minutes = (endDate.getTime() - startDate.getTime()) / (60 * 1000);
+        const requestsPerMinute = requestCount / minutes;
 
-      suspiciousIPs.push({
-        ipAddress,
-        riskScore,
-        requestCount,
-        requestsPerMinute,
-        errorRate: details.errorRate,
-        failedAuthCount: details.failedAuthCount,
-        suspiciousFactors,
-        lastRequestAt: stat._max.createdAt!,
-        recommendation,
+        // Get detailed stats for this IP
+        const details = await this.getIPDetails(ipAddress, { startDate, endDate });
+
+        // Calculate risk score
+        const riskScore = this.calculateRiskScore(details, config);
+
+        // Skip if risk score too low
+        if (riskScore < minRiskScore) {
+          continue;
+        }
+
+        // Identify suspicious factors
+        const suspiciousFactors = this.identifySuspiciousFactors(details, config);
+
+        // Determine recommendation
+        const recommendation = this.getRecommendation(riskScore, suspiciousFactors);
+
+        suspiciousIPs.push({
+          ipAddress,
+          riskScore,
+          requestCount,
+          requestsPerMinute,
+          errorRate: details.errorRate,
+          failedAuthCount: details.failedAuthCount,
+          suspiciousFactors,
+          lastRequestAt: stat._max.createdAt!,
+          recommendation,
+        });
+      }
+
+      // Sort by risk score (highest first)
+      return suspiciousIPs.sort((a, b) => b.riskScore - a.riskScore);
+    } catch (error) {
+      logger.error('Error in detectSuspiciousIPs', {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        options,
       });
+      throw error;
     }
-
-    // Sort by risk score (highest first)
-    return suspiciousIPs.sort((a, b) => b.riskScore - a.riskScore);
   }
 
   /**
