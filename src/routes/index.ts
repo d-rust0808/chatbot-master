@@ -64,7 +64,9 @@ export async function setupRoutes(fastify: FastifyInstance) {
   // WHY: Webhook endpoint phải được đăng ký TRƯỚC payment routes
   // - Tránh bị ảnh hưởng bởi middleware auth trong payment routes
   // - Webhook là public endpoint, không cần authentication
+  // - Đăng ký cả 2 paths để tương thích với cả sp-admin và admin
   fastify.post('/sp-admin/payments/webhook/sepay', sepayWebhookHandler);
+  fastify.post('/admin/payments/webhook/sepay', sepayWebhookHandler);
 
   // Register payment routes
   // - Admin endpoints (tenant admin) → /admin/payments
