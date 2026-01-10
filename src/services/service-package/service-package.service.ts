@@ -37,7 +37,12 @@ export async function getServicePackages(service?: string) {
     service: pkg.service,
     pricePerMonth: pkg.pricePerMonth,
     minDuration: pkg.minDuration,
+    imageUrl: pkg.imageUrl,
     features: pkg.features,
+    isActive: pkg.isActive,
+    sortOrder: pkg.sortOrder,
+    createdAt: pkg.createdAt,
+    updatedAt: pkg.updatedAt,
   }));
 }
 
