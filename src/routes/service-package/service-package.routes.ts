@@ -16,11 +16,13 @@ import {
 import { authenticate } from '../../middleware/auth';
 
 export async function servicePackageRoutes(fastify: FastifyInstance) {
-  // Public: Get packages (no auth required)
-  fastify.get('/', getServicePackagesHandler);
-
-  // Authenticated routes
+  // WHY: Tất cả routes đều require authentication
+  // - Security: Chỉ authenticated users mới có thể xem và đăng ký dịch vụ
+  // - Multi-tenant: Cần tenant context để filter packages/subscriptions
   fastify.addHook('preHandler', authenticate);
+
+  // Get packages (now requires auth)
+  fastify.get('/', getServicePackagesHandler);
 
   // Purchase package
   fastify.post('/:packageId/purchase', purchaseServicePackageHandler);
