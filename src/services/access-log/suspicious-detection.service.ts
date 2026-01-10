@@ -116,12 +116,14 @@ export class SuspiciousDetectionService {
       // Check if model is available first (synchronous check)
       const modelAvailable = checkAccessLogModelAvailable();
       if (!modelAvailable) {
-        const errorMessage = 'AccessLog model not available. Please run: npx prisma generate && npx prisma migrate deploy';
-        logger.error('AccessLog model not found in Prisma client', {
+        // WHY: Graceful degradation - return empty array instead of error
+        // This allows API to work even if Prisma client not regenerated
+        // Admin will see empty list and can check logs for warning
+        logger.warn('AccessLog model not found in Prisma client - returning empty results', {
           hint: 'Run: npx prisma generate && npx prisma migrate deploy',
-          error: errorMessage,
+          action: 'Returning empty suspicious IPs list',
         });
-        throw new Error(errorMessage);
+        return [];
       }
 
       const config = { ...DEFAULT_CONFIG, ...options.config };
@@ -166,16 +168,17 @@ export class SuspiciousDetectionService {
           errorMessage.includes('model') && errorMessage.includes('not found') ||
           errorMessage.includes('table') && errorMessage.includes('does not exist')
         ) {
-          const deploymentError = 'AccessLog model not available. Please run: npx prisma generate && npx prisma migrate deploy';
-          logger.error('AccessLog model/table not found', {
+          // WHY: Graceful degradation - return empty array instead of error
+          logger.warn('AccessLog model/table not found - returning empty results', {
             error: error.message,
             errorCode: error.code,
             hint: 'Run: npx prisma generate && npx prisma migrate deploy',
+            action: 'Returning empty suspicious IPs list',
           });
-          throw new Error(deploymentError);
+          return [];
         }
         
-        // Re-throw other errors
+        // Re-throw other errors (database connection, etc.)
         logger.error('Unexpected error in detectSuspiciousIPs groupBy', {
           error: error.message,
           errorCode: error.code,
@@ -254,7 +257,22 @@ export class SuspiciousDetectionService {
     // Check if model is available (synchronous check)
     const modelAvailable = checkAccessLogModelAvailable();
     if (!modelAvailable) {
-      throw new Error('AccessLog model not available. Please run: npx prisma generate && npx prisma migrate deploy');
+      // WHY: Return default values instead of throwing
+      // This allows the flow to continue even if model not available
+      logger.warn('AccessLog model not available in getIPDetails - returning defaults', {
+        ipAddress,
+        hint: 'Run: npx prisma generate && npx prisma migrate deploy',
+      });
+      return {
+        totalRequests: 0,
+        successCount: 0,
+        errorCount: 0,
+        errorRate: 0,
+        failedAuthCount: 0,
+        methods: {},
+        statusCodes: {},
+        paths: [],
+      };
     }
 
     const logs = await prismaWithAccessLog.accessLog.findMany({

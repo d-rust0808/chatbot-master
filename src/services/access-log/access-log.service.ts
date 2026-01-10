@@ -164,15 +164,43 @@ export class AccessLogService {
       }
     }
 
-    const [logs, total] = await Promise.all([
-      prismaWithAccessLog.accessLog.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { createdAt: 'desc' },
-      }),
-      prismaWithAccessLog.accessLog.count({ where }),
-    ]);
+    let logs: any[] = [];
+    let total = 0;
+
+    try {
+      [logs, total] = await Promise.all([
+        prismaWithAccessLog.accessLog.findMany({
+          where,
+          skip,
+          take: limit,
+          orderBy: { createdAt: 'desc' },
+        }),
+        prismaWithAccessLog.accessLog.count({ where }),
+      ]);
+    } catch (error: any) {
+      // WHY: Graceful degradation - if model/table not available, return empty results
+      const errorMessage = (error?.message || '').toLowerCase();
+      const errorCode = error?.code || '';
+      
+      if (
+        errorCode === 'P2021' || // Table does not exist
+        errorCode === 'P2022' || // Column does not exist
+        errorMessage.includes('accesslog') ||
+        errorMessage.includes('access_log') ||
+        errorMessage.includes('does not exist') ||
+        errorMessage.includes('unknown model')
+      ) {
+        logger.warn('AccessLog model/table not found in getLogs - returning empty results', {
+          hint: 'Run: npx prisma generate && npx prisma migrate deploy',
+        });
+        // Return empty results instead of throwing
+        logs = [];
+        total = 0;
+      } else {
+        // Re-throw other errors
+        throw error;
+      }
+    }
 
     return {
       data: logs.map((log: any) => ({

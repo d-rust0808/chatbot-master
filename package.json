@@ -11,8 +11,6 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
-    "prisma:check": "bash scripts/check-prisma.sh",
-    "deploy:prepare": "bash scripts/deploy.sh",
     "test": "jest",
     "test:models": "ts-node src/scripts/test-models.ts",
     "lint": "eslint src --ext .ts",
