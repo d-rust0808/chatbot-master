@@ -15,6 +15,7 @@ import { messageQueueService } from '../../services/message-queue.service';
 import { prisma } from '../../infrastructure/database';
 import { logger } from '../../infrastructure/logger';
 import { requireTenant } from '../../middleware/tenant';
+import { formatSuccessResponse, formatErrorResponse } from '../../utils/response-format';
 
 // Validation schemas
 const connectPlatformSchema = z.object({
@@ -62,12 +63,13 @@ export async function connectPlatformHandler(
     });
 
     if (!chatbot) {
-      return reply.status(404).send({
-        error: {
-          message: 'Chatbot not found',
-          statusCode: 404,
-        },
-      });
+      return reply.status(404).send(
+        formatErrorResponse(
+          'NOT_FOUND_ERROR',
+          'Chatbot not found',
+          404
+        )
+      );
     }
 
     // Check if connection already exists
@@ -99,31 +101,35 @@ export async function connectPlatformHandler(
       options: validatedData.options,
     });
 
-    return reply.status(200).send({
-      success: true,
-      data: {
+    const formattedResponse = formatSuccessResponse(
+      {
         connectionId: connection.id,
         status: 'connected',
       },
-    });
+      200,
+      'Platform connected successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Validation error',
-          statusCode: 400,
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Validation error',
+          400,
+          error.errors
+        )
+      );
     }
 
     logger.error('Connect platform error:', error);
-    return reply.status(500).send({
-      error: {
-        message: error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -149,29 +155,33 @@ export async function disconnectPlatformHandler(
     });
 
     if (!connection) {
-      return reply.status(404).send({
-        error: {
-          message: 'Connection not found',
-          statusCode: 404,
-        },
-      });
+      return reply.status(404).send(
+        formatErrorResponse(
+          'NOT_FOUND_ERROR',
+          'Connection not found',
+          404
+        )
+      );
     }
 
     // Disconnect
     await platformManager.disconnectPlatform(connectionId);
 
-    return reply.status(200).send({
-      success: true,
-      message: 'Platform disconnected',
-    });
+    const formattedResponse = formatSuccessResponse(
+      null,
+      200,
+      'Platform disconnected successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Disconnect platform error:', error);
-    return reply.status(500).send({
-      error: {
-        message: error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -208,18 +218,21 @@ export async function getConnectionsHandler(
       },
     });
 
-    return reply.status(200).send({
-      success: true,
-      data: connections,
-    });
+    const formattedResponse = formatSuccessResponse(
+      connections,
+      200,
+      'Platform connections retrieved successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Get connections error:', error);
-    return reply.status(500).send({
-      error: {
-        message: 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -245,12 +258,13 @@ export async function sendMessageHandler(
     });
 
     if (!connection) {
-      return reply.status(404).send({
-        error: {
-          message: 'Connection not found',
-          statusCode: 404,
-        },
-      });
+      return reply.status(404).send(
+        formatErrorResponse(
+          'NOT_FOUND_ERROR',
+          'Connection not found',
+          404
+        )
+      );
     }
 
     // Send message (sync hoặc async via queue)
@@ -263,46 +277,51 @@ export async function sendMessageHandler(
         options: validatedData.options,
       });
 
-      return reply.status(202).send({
-        success: true,
-        message: 'Message queued',
-        data: {
+      const formattedResponse = formatSuccessResponse(
+        {
           jobId,
           status: 'queued',
         },
-      });
+        202,
+        'Message queued successfully'
+      );
+      return reply.status(202).send(formattedResponse);
     } else {
       // Send immediately (synchronous)
-    await platformManager.sendMessage(
-      validatedData.connectionId,
-      validatedData.chatId,
+      await platformManager.sendMessage(
+        validatedData.connectionId,
+        validatedData.chatId,
         validatedData.message,
         validatedData.options
-    );
+      );
 
-    return reply.status(200).send({
-      success: true,
-      message: 'Message sent',
-    });
+      const formattedResponse = formatSuccessResponse(
+        null,
+        200,
+        'Message sent successfully'
+      );
+      return reply.status(200).send(formattedResponse);
     }
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Validation error',
-          statusCode: 400,
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Validation error',
+          400,
+          error.errors
+        )
+      );
     }
 
     logger.error('Send message error:', error);
-    return reply.status(500).send({
-      error: {
-        message: error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -328,29 +347,33 @@ export async function getChatsHandler(
     });
 
     if (!connection) {
-      return reply.status(404).send({
-        error: {
-          message: 'Connection not found',
-          statusCode: 404,
-        },
-      });
+      return reply.status(404).send(
+        formatErrorResponse(
+          'NOT_FOUND_ERROR',
+          'Connection not found',
+          404
+        )
+      );
     }
 
     // Get chats
     const chats = await platformManager.getChats(connectionId);
 
-    return reply.status(200).send({
-      success: true,
-      data: chats,
-    });
+    const formattedResponse = formatSuccessResponse(
+      chats,
+      200,
+      'Chats retrieved successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Get chats error:', error);
-    return reply.status(500).send({
-      error: {
-        message: error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 

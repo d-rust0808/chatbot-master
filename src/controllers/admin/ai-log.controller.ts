@@ -11,6 +11,7 @@ import { FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { aiRequestLogService } from '../../services/ai/ai-request-log.service';
 import { logger } from '../../infrastructure/logger';
+import { formatSuccessResponse, formatErrorResponse } from '../../utils/response-format';
 
 /**
  * List logs query schema
@@ -57,29 +58,36 @@ export async function listAILogsHandler(
       limit: query.limit,
     });
     
-    return reply.status(200).send({
-      data: result.data,
-      meta: result.meta,
-    });
+    const formattedResponse = formatSuccessResponse(
+      result.data,
+      200,
+      'AI logs retrieved successfully',
+      result.meta
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Failed to list AI logs', {
       error: error instanceof Error ? error.message : String(error),
     });
     
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Invalid query parameters',
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Invalid query parameters',
+          400,
+          error.errors
+        )
+      );
     }
     
-    return reply.status(500).send({
-      error: {
-        message: 'Failed to list AI logs',
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        'Failed to list AI logs',
+        500
+      )
+    );
   }
 }
 
@@ -100,28 +108,35 @@ export async function getSuspiciousIPsHandler(
       endDate: query.endDate ? new Date(query.endDate) : undefined,
     });
     
-    return reply.status(200).send({
-      data: result,
-    });
+    const formattedResponse = formatSuccessResponse(
+      result,
+      200,
+      'Suspicious IPs retrieved successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Failed to get suspicious IPs', {
       error: error instanceof Error ? error.message : String(error),
     });
     
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Invalid query parameters',
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Invalid query parameters',
+          400,
+          error.errors
+        )
+      );
     }
     
-    return reply.status(500).send({
-      error: {
-        message: 'Failed to get suspicious IPs',
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        'Failed to get suspicious IPs',
+        500
+      )
+    );
   }
 }
 

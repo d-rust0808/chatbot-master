@@ -13,6 +13,7 @@ import { z } from 'zod';
 import { prisma } from '../../infrastructure/database';
 import { logger } from '../../infrastructure/logger';
 import { requireTenant } from '../../middleware/tenant';
+import { formatSuccessResponse, formatErrorResponse } from '../../utils/response-format';
 
 // Validation schemas
 const analyticsQuerySchema = z.object({
@@ -90,9 +91,8 @@ export async function getMessageStatsHandler(
       return acc;
     }, {} as Record<string, number>);
 
-    return reply.status(200).send({
-      success: true,
-      data: {
+    const formattedResponse = formatSuccessResponse(
+      {
         period: validated.period,
         startDate: startDate.toISOString(),
         endDate: endDate.toISOString(),
@@ -104,25 +104,30 @@ export async function getMessageStatsHandler(
         timeline: stats,
         platformBreakdown,
       },
-    });
+      200,
+      'Message statistics retrieved successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Validation error',
-          statusCode: 400,
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Validation error',
+          400,
+          error.errors
+        )
+      );
     }
 
     logger.error('Get message stats error:', error);
-    return reply.status(500).send({
-      error: {
-        message: error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -188,9 +193,8 @@ export async function getConversationStatsHandler(
       return acc;
     }, {} as Record<string, number>);
 
-    return reply.status(200).send({
-      success: true,
-      data: {
+    const formattedResponse = formatSuccessResponse(
+      {
         totals: {
           total: totalConversations,
           active: activeConversations,
@@ -201,15 +205,19 @@ export async function getConversationStatsHandler(
         },
         platformBreakdown,
       },
-    });
+      200,
+      'Conversation statistics retrieved successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Get conversation stats error:', error);
-    return reply.status(500).send({
-      error: {
-        message: error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -272,22 +280,25 @@ export async function getResponseTimeStatsHandler(
         ? responseTimes.reduce((sum, rt) => sum + rt, 0) / responseTimes.length
         : 0;
 
-    return reply.status(200).send({
-      success: true,
-      data: {
+    const formattedResponse = formatSuccessResponse(
+      {
         averageResponseTime: Math.round(avgResponseTime * 100) / 100, // ms
         totalResponses: messages.length,
         responsesWithTimeData: responseTimes.length,
       },
-    });
+      200,
+      'Response time statistics retrieved successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Get response time stats error:', error);
-    return reply.status(500).send({
-      error: {
-        message: error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 

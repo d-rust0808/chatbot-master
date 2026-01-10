@@ -13,6 +13,7 @@ import { z } from 'zod';
 import { register, login, refreshAccessToken, logout } from '../../services/auth/auth.service';
 import { logger } from '../../infrastructure/logger';
 import type { AuthenticatedRequest, LoginRequest, RegisterRequest } from '../../types/auth';
+import { formatSuccessResponse, formatErrorResponse } from '../../utils/response-format';
 
 // Validation schemas
 const registerSchema = z.object({
@@ -44,29 +45,33 @@ export async function registerHandler(
     // Call service
     const result = await register(validatedData);
 
-    // Return response
-    return reply.status(201).send({
-      success: true,
-      data: result,
-    });
+    // Return response với format chuẩn
+    const formattedResponse = formatSuccessResponse(
+      result,
+      201,
+      'User registered successfully'
+    );
+    return reply.status(201).send(formattedResponse);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Validation error',
-          statusCode: 400,
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Validation error',
+          400,
+          error.errors
+        )
+      );
     }
 
     logger.error('Register error:', error);
-    return reply.status(500).send({
-      error: {
-        message: error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -91,15 +96,9 @@ export async function loginHandler(
     // Call service
     const result = await login(validatedData);
 
-    const apiVersion = 'v1';
-    const provider = 'cdudu';
-
-    // Return response with enriched metadata
-    return reply.status(200).send({
-      success: true,
-      status_code: 200,
-      message: 'Đăng nhập thành công',
-      data: {
+    // Return response với format chuẩn
+    const formattedResponse = formatSuccessResponse(
+      {
         accessToken: result.accessToken,
         refreshToken: result.refreshToken,
         user: {
@@ -117,9 +116,10 @@ export async function loginHandler(
           creditBalance: 0,
         },
       },
-      api_version: apiVersion,
-      provider,
-    });
+      200,
+      'Đăng nhập thành công'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     // Log error với full context
     logger.error('Login error:', {
@@ -130,38 +130,35 @@ export async function loginHandler(
     });
 
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Validation error',
-          statusCode: 400,
-          details: error.errors,
-        },
-        api_version: 'v1',
-        provider: 'cdudu',
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Validation error',
+          400,
+          error.errors
+        )
+      );
     }
 
     // Handle invalid credentials
     if (error instanceof Error && error.message === 'Invalid credentials') {
-      return reply.status(401).send({
-        error: {
-          message: 'Thông tin tài khoản mật khẩu không đúng',
-          statusCode: 401,
-        },
-        api_version: 'v1',
-        provider: 'cdudu',
-      });
+      return reply.status(401).send(
+        formatErrorResponse(
+          'AUTH_ERROR',
+          'Thông tin tài khoản mật khẩu không đúng',
+          401
+        )
+      );
     }
 
     // Handle other errors
-    return reply.status(500).send({
-      error: {
-        message: error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-      api_version: 'v1',
-      provider: 'cdudu',
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -179,29 +176,33 @@ export async function refreshTokenHandler(
     // Call service
     const result = await refreshAccessToken(validatedData.refreshToken);
 
-    // Return response
-    return reply.status(200).send({
-      success: true,
-      data: result,
-    });
+    // Return response với format chuẩn
+    const formattedResponse = formatSuccessResponse(
+      result,
+      200,
+      'Access token refreshed successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Validation error',
-          statusCode: 400,
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Validation error',
+          400,
+          error.errors
+        )
+      );
     }
 
     logger.error('Refresh token error:', error);
-    return reply.status(401).send({
-      error: {
-        message: error instanceof Error ? error.message : 'Invalid refresh token',
-        statusCode: 401,
-      },
-    });
+    return reply.status(401).send(
+      formatErrorResponse(
+        'AUTH_ERROR',
+        error instanceof Error ? error.message : 'Invalid refresh token',
+        401
+      )
+    );
   }
 }
 
@@ -219,19 +220,22 @@ export async function logoutHandler(
     // Call service
     await logout(userId);
 
-    // Return response
-    return reply.status(200).send({
-      success: true,
-      message: 'Logged out successfully',
-    });
+    // Return response với format chuẩn
+    const formattedResponse = formatSuccessResponse(
+      null,
+      200,
+      'Logged out successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Logout error:', error);
-    return reply.status(500).send({
-      error: {
-        message: 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        'Internal server error',
+        500
+      )
+    );
   }
 }
 

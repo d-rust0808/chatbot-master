@@ -12,6 +12,7 @@ import { z } from 'zod';
 import { prisma } from '../infrastructure/database';
 import { logger } from '../infrastructure/logger';
 // import type { AuthenticatedRequest } from '../types/auth';
+import { formatSuccessResponse, formatErrorResponse } from '../utils/response-format';
 
 const tenantIdParamSchema = z.object({
   tenantId: z.string().min(1),
@@ -76,29 +77,32 @@ export async function listTenantServicesHandler(
       orderBy: { service: 'asc' },
     });
 
-    return reply.status(200).send({
-      success: true,
-      data: services,
-    });
+    const formattedResponse = formatSuccessResponse(
+      services,
+      200,
+      'Tenant services retrieved successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Validation error',
-          statusCode: 400,
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Validation error',
+          400,
+          error.errors
+        )
+      );
     }
 
     logger.error('List tenant services error:', error);
-    return reply.status(500).send({
-      error: {
-        message:
-          error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -123,12 +127,13 @@ export async function upsertTenantServicesHandler(
     });
 
     if (!tenant) {
-      return reply.status(404).send({
-        error: {
-          message: 'Tenant not found',
-          statusCode: 404,
-        },
-      });
+      return reply.status(404).send(
+        formatErrorResponse(
+          'NOT_FOUND_ERROR',
+          'Tenant not found',
+          404
+        )
+      );
     }
 
     // Upsert từng service
@@ -160,29 +165,32 @@ export async function upsertTenantServicesHandler(
       orderBy: { service: 'asc' },
     });
 
-    return reply.status(200).send({
-      success: true,
-      data: updated,
-    });
+    const formattedResponse = formatSuccessResponse(
+      updated,
+      200,
+      'Tenant services updated successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Validation error',
-          statusCode: 400,
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Validation error',
+          400,
+          error.errors
+        )
+      );
     }
 
     logger.error('Upsert tenant services error:', error);
-    return reply.status(500).send({
-      error: {
-        message:
-          error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -210,37 +218,40 @@ export async function listUserServicePermissionsHandler(
     });
 
     if (!tenantUser) {
-      return reply.status(404).send({
-        error: {
-          message: 'Tenant user not found',
-          statusCode: 404,
-        },
-      });
+      return reply.status(404).send(
+        formatErrorResponse(
+          'NOT_FOUND_ERROR',
+          'Tenant user not found',
+          404
+        )
+      );
     }
 
     const permissions = await (prisma as any).tenantUserServicePermission.findMany({
       where: { tenantUserId: tenantUser.id },
     });
 
-    return reply.status(200).send({
-      success: true,
-      data: {
+    const formattedResponse = formatSuccessResponse(
+      {
         tenantUser: {
           id: tenantUser.id,
           role: tenantUser.role,
         },
         permissions,
       },
-    });
+      200,
+      'User service permissions retrieved successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('List user service permissions error:', error);
-    return reply.status(500).send({
-      error: {
-        message:
-          error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -267,12 +278,13 @@ export async function upsertUserServicePermissionsHandler(
     });
 
     if (!tenantUser) {
-      return reply.status(404).send({
-        error: {
-          message: 'Tenant user not found',
-          statusCode: 404,
-        },
-      });
+      return reply.status(404).send(
+        formatErrorResponse(
+          'NOT_FOUND_ERROR',
+          'Tenant user not found',
+          404
+        )
+      );
     }
 
     await prisma.$transaction(
@@ -302,29 +314,32 @@ export async function upsertUserServicePermissionsHandler(
       where: { tenantUserId: tenantUser.id },
     });
 
-    return reply.status(200).send({
-      success: true,
-      data: updated,
-    });
+    const formattedResponse = formatSuccessResponse(
+      updated,
+      200,
+      'User service permissions updated successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Validation error',
-          statusCode: 400,
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Validation error',
+          400,
+          error.errors
+        )
+      );
     }
 
     logger.error('Upsert user service permissions error:', error);
-    return reply.status(500).send({
-      error: {
-        message:
-          error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -355,19 +370,21 @@ export async function listWorkflowsHandler(
       orderBy: { createdAt: 'desc' },
     });
 
-    return reply.status(200).send({
-      success: true,
-      data: workflows,
-    });
+    const formattedResponse = formatSuccessResponse(
+      workflows,
+      200,
+      'Workflows retrieved successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('List workflows error:', error);
-    return reply.status(500).send({
-      error: {
-        message:
-          error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -395,12 +412,13 @@ export async function createWorkflowHandler(
     });
 
     if (!chatbot) {
-      return reply.status(404).send({
-        error: {
-          message: 'Chatbot not found for tenant',
-          statusCode: 404,
-        },
-      });
+      return reply.status(404).send(
+        formatErrorResponse(
+          'NOT_FOUND_ERROR',
+          'Chatbot not found for tenant',
+          404
+        )
+      );
     }
 
     const created = await (prisma as any).workflow.create({
@@ -415,29 +433,32 @@ export async function createWorkflowHandler(
       },
     });
 
-    return reply.status(201).send({
-      success: true,
-      data: created,
-    });
+    const formattedResponse = formatSuccessResponse(
+      created,
+      201,
+      'Workflow created successfully'
+    );
+    return reply.status(201).send(formattedResponse);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Validation error',
-          statusCode: 400,
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Validation error',
+          400,
+          error.errors
+        )
+      );
     }
 
     logger.error('Create workflow error:', error);
-    return reply.status(500).send({
-      error: {
-        message:
-          error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -463,12 +484,13 @@ export async function updateWorkflowHandler(
     });
 
     if (!existing) {
-      return reply.status(404).send({
-        error: {
-          message: 'Workflow not found',
-          statusCode: 404,
-        },
-      });
+      return reply.status(404).send(
+        formatErrorResponse(
+          'NOT_FOUND_ERROR',
+          'Workflow not found',
+          404
+        )
+      );
     }
 
     const updated = await (prisma as any).workflow.update({
@@ -479,29 +501,32 @@ export async function updateWorkflowHandler(
       } as any,
     });
 
-    return reply.status(200).send({
-      success: true,
-      data: updated,
-    });
+    const formattedResponse = formatSuccessResponse(
+      updated,
+      200,
+      'Workflow updated successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Validation error',
-          statusCode: 400,
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Validation error',
+          400,
+          error.errors
+        )
+      );
     }
 
     logger.error('Update workflow error:', error);
-    return reply.status(500).send({
-      error: {
-        message:
-          error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -526,28 +551,34 @@ export async function deleteWorkflowHandler(
     });
 
     if (!existing) {
-      return reply.status(404).send({
-        error: {
-          message: 'Workflow not found',
-          statusCode: 404,
-        },
-      });
+      return reply.status(404).send(
+        formatErrorResponse(
+          'NOT_FOUND_ERROR',
+          'Workflow not found',
+          404
+        )
+      );
     }
 
     await (prisma as any).workflow.delete({
       where: { id: workflowId },
     });
 
-    return reply.status(204).send();
+    const formattedResponse = formatSuccessResponse(
+      null,
+      204,
+      'Workflow deleted successfully'
+    );
+    return reply.status(204).send(formattedResponse);
   } catch (error) {
     logger.error('Delete workflow error:', error);
-    return reply.status(500).send({
-      error: {
-        message:
-          error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 

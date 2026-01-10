@@ -16,6 +16,7 @@ import {
   updateSystemConfigSchema,
   listSystemConfigsSchema,
 } from '../../types/system-config';
+import { formatSuccessResponse, formatErrorResponse } from '../../utils/response-format';
 
 /**
  * List system configs
@@ -36,29 +37,36 @@ export async function listSystemConfigsHandler(
       search: query.search,
     });
     
-    return reply.status(200).send({
-      data: result.data,
-      meta: result.meta,
-    });
+    const formattedResponse = formatSuccessResponse(
+      result.data,
+      200,
+      'System configs retrieved successfully',
+      result.meta
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Failed to list system configs', {
       error: error instanceof Error ? error.message : String(error),
     });
     
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Invalid query parameters',
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Invalid query parameters',
+          400,
+          error.errors
+        )
+      );
     }
     
-    return reply.status(500).send({
-      error: {
-        message: 'Failed to list system configs',
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        'Failed to list system configs',
+        500
+      )
+    );
   }
 }
 
@@ -86,34 +94,42 @@ export async function getSystemConfigHandler(
     
     // Return 200 with null value if config doesn't exist (for AI config, allow empty)
     if (!config) {
-      return reply.status(200).send({
-        data: {
+      const formattedResponse = formatSuccessResponse(
+        {
           category,
           key,
           value: null,
           type: 'string',
         },
-      });
+        200,
+        'System config retrieved successfully'
+      );
+      return reply.status(200).send(formattedResponse);
     }
     
-    return reply.status(200).send({
-      data: {
+    const formattedResponse = formatSuccessResponse(
+      {
         category,
         key,
         value: config.value,
         type: config.type,
       },
-    });
+      200,
+      'System config retrieved successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Failed to get system config', {
       error: error instanceof Error ? error.message : String(error),
     });
     
-    return reply.status(500).send({
-      error: {
-        message: 'Failed to get system config',
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        'Failed to get system config',
+        500
+      )
+    );
   }
 }
 
@@ -142,37 +158,46 @@ export async function createSystemConfigHandler(
       userId
     );
     
-    return reply.status(201).send({
-      data: config,
-    });
+    const formattedResponse = formatSuccessResponse(
+      config,
+      201,
+      'System config created successfully'
+    );
+    return reply.status(201).send(formattedResponse);
   } catch (error) {
     logger.error('Failed to create system config', {
       error: error instanceof Error ? error.message : String(error),
     });
     
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Invalid request body',
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Invalid request body',
+          400,
+          error.errors
+        )
+      );
     }
     
     // Handle unique constraint violation
     if (error instanceof Error && error.message.includes('Unique constraint')) {
-      return reply.status(409).send({
-        error: {
-          message: 'System config already exists',
-        },
-      });
+      return reply.status(409).send(
+        formatErrorResponse(
+          'CONFLICT_ERROR',
+          'System config already exists',
+          409
+        )
+      );
     }
     
-    return reply.status(500).send({
-      error: {
-        message: 'Failed to create system config',
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        'Failed to create system config',
+        500
+      )
+    );
   }
 }
 
@@ -208,38 +233,47 @@ export async function updateSystemConfigHandler(
       userId
     );
     
-    return reply.status(200).send({
-      data: config,
-    });
+    const formattedResponse = formatSuccessResponse(
+      config,
+      200,
+      'System config updated successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Failed to update system config', {
       error: error instanceof Error ? error.message : String(error),
     });
     
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Invalid request body',
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Invalid request body',
+          400,
+          error.errors
+        )
+      );
     }
     
     // Config will be auto-created if doesn't exist, so no need for 404 check
     
     if (error instanceof Error && error.message.includes('not editable')) {
-      return reply.status(403).send({
-        error: {
-          message: 'System config is not editable',
-        },
-      });
+      return reply.status(403).send(
+        formatErrorResponse(
+          'FORBIDDEN_ERROR',
+          'System config is not editable',
+          403
+        )
+      );
     }
     
-    return reply.status(500).send({
-      error: {
-        message: 'Failed to update system config',
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        'Failed to update system config',
+        500
+      )
+    );
   }
 }
 
@@ -265,33 +299,44 @@ export async function deleteSystemConfigHandler(
       key
     );
     
-    return reply.status(204).send();
+    const formattedResponse = formatSuccessResponse(
+      null,
+      204,
+      'System config deleted successfully'
+    );
+    return reply.status(204).send(formattedResponse);
   } catch (error) {
     logger.error('Failed to delete system config', {
       error: error instanceof Error ? error.message : String(error),
     });
     
     if (error instanceof Error && error.message.includes('not found')) {
-      return reply.status(404).send({
-        error: {
-          message: 'System config not found',
-        },
-      });
+      return reply.status(404).send(
+        formatErrorResponse(
+          'NOT_FOUND_ERROR',
+          'System config not found',
+          404
+        )
+      );
     }
     
     if (error instanceof Error && error.message.includes('not editable')) {
-      return reply.status(403).send({
-        error: {
-          message: 'System config is not editable',
-        },
-      });
+      return reply.status(403).send(
+        formatErrorResponse(
+          'FORBIDDEN_ERROR',
+          'System config is not editable',
+          403
+        )
+      );
     }
     
-    return reply.status(500).send({
-      error: {
-        message: 'Failed to delete system config',
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        'Failed to delete system config',
+        500
+      )
+    );
   }
 }
 
@@ -307,19 +352,24 @@ export async function initializeSystemConfigsHandler(
   try {
     await systemConfigService.initializeDefaultConfigs();
     
-    return reply.status(200).send({
-      message: 'Default system configs initialized successfully',
-    });
+    const formattedResponse = formatSuccessResponse(
+      null,
+      200,
+      'Default system configs initialized successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Failed to initialize default system configs', {
       error: error instanceof Error ? error.message : String(error),
     });
     
-    return reply.status(500).send({
-      error: {
-        message: 'Failed to initialize default system configs',
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        'Failed to initialize default system configs',
+        500
+      )
+    );
   }
 }
 

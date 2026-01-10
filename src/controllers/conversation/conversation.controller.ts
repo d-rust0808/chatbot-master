@@ -13,6 +13,7 @@ import { z } from 'zod';
 import { prisma } from '../../infrastructure/database';
 import { logger } from '../../infrastructure/logger';
 import { requireTenant } from '../../middleware/tenant';
+import { formatSuccessResponse, formatErrorResponse } from '../../utils/response-format';
 
 // Validation schemas
 const listConversationsSchema = z.object({
@@ -89,34 +90,38 @@ export async function listConversationsHandler(
       prisma.conversation.count({ where }),
     ]);
 
-    return reply.status(200).send({
-      success: true,
-      data: conversations,
-      meta: {
+    const formattedResponse = formatSuccessResponse(
+      conversations,
+      200,
+      'Conversations retrieved successfully',
+      {
         page,
         limit,
         total,
         totalPages: Math.ceil(total / limit),
-      },
-    });
+      }
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Validation error',
-          statusCode: 400,
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Validation error',
+          400,
+          error.errors
+        )
+      );
     }
 
     logger.error('List conversations error:', error);
-    return reply.status(500).send({
-      error: {
-        message: error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -157,12 +162,13 @@ export async function getConversationHandler(
     });
 
     if (!conversation) {
-      return reply.status(404).send({
-        error: {
-          message: 'Conversation not found',
-          statusCode: 404,
-        },
-      });
+      return reply.status(404).send(
+        formatErrorResponse(
+          'NOT_FOUND_ERROR',
+          'Conversation not found',
+          404
+        )
+      );
     }
 
     // Get messages
@@ -176,27 +182,30 @@ export async function getConversationHandler(
       prisma.message.count({ where: { conversationId } }),
     ]);
 
-    return reply.status(200).send({
-      success: true,
-      data: {
+    const formattedResponse = formatSuccessResponse(
+      {
         conversation,
         messages: messages.reverse(), // Return in chronological order
-        meta: {
-          page,
-          limit,
-          totalMessages,
-          totalPages: Math.ceil(totalMessages / limit),
-        },
       },
-    });
+      200,
+      'Conversation retrieved successfully',
+      {
+        page,
+        limit,
+        totalMessages,
+        totalPages: Math.ceil(totalMessages / limit),
+      }
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Get conversation error:', error);
-    return reply.status(500).send({
-      error: {
-        message: error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -236,12 +245,13 @@ export async function exportConversationHandler(
     });
 
     if (!conversation) {
-      return reply.status(404).send({
-        error: {
-          message: 'Conversation not found',
-          statusCode: 404,
-        },
-      });
+      return reply.status(404).send(
+        formatErrorResponse(
+          'NOT_FOUND_ERROR',
+          'Conversation not found',
+          404
+        )
+      );
     }
 
     // Format export based on format
@@ -289,12 +299,13 @@ export async function exportConversationHandler(
       .send(exportData);
   } catch (error) {
     logger.error('Export conversation error:', error);
-    return reply.status(500).send({
-      error: {
-        message: error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 

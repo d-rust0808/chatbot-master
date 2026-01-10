@@ -12,6 +12,7 @@ import { z } from 'zod';
 import { ipManagementService } from '../../services/ip-management/ip-management.service';
 import { logger } from '../../infrastructure/logger';
 import type { AuthenticatedRequest } from '../../types/auth';
+import { formatSuccessResponse, formatErrorResponse } from '../../utils/response-format';
 
 /**
  * Add to blacklist schema
@@ -76,28 +77,35 @@ export async function addToBlacklistHandler(
       expiresAt: body.expiresAt ? new Date(body.expiresAt) : undefined,
     });
 
-    return reply.status(201).send({
-      data: result,
-    });
+    const formattedResponse = formatSuccessResponse(
+      result,
+      201,
+      'IP added to blacklist successfully'
+    );
+    return reply.status(201).send(formattedResponse);
   } catch (error) {
     logger.error('Failed to add IP to blacklist', {
       error: error instanceof Error ? error.message : String(error),
     });
 
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Invalid request body',
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Invalid request body',
+          400,
+          error.errors
+        )
+      );
     }
 
-    return reply.status(500).send({
-      error: {
-        message: 'Failed to add IP to blacklist',
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        'Failed to add IP to blacklist',
+        500
+      )
+    );
   }
 }
 
@@ -114,9 +122,12 @@ export async function removeFromBlacklistHandler(
 
     await ipManagementService.removeFromBlacklist(ipAddress);
 
-    return reply.status(200).send({
-      message: 'IP removed from blacklist',
-    });
+    const formattedResponse = formatSuccessResponse(
+      null,
+      200,
+      'IP removed from blacklist successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Failed to remove IP from blacklist', {
       error: error instanceof Error ? error.message : String(error),
@@ -124,18 +135,22 @@ export async function removeFromBlacklistHandler(
     });
 
     if (error instanceof Error && error.message.includes('not in blacklist')) {
-      return reply.status(404).send({
-        error: {
-          message: error.message,
-        },
-      });
+      return reply.status(404).send(
+        formatErrorResponse(
+          'NOT_FOUND_ERROR',
+          error.message,
+          404
+        )
+      );
     }
 
-    return reply.status(500).send({
-      error: {
-        message: 'Failed to remove IP from blacklist',
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        'Failed to remove IP from blacklist',
+        500
+      )
+    );
   }
 }
 
@@ -156,29 +171,36 @@ export async function getBlacklistHandler(
       isActive: query.isActive,
     });
 
-    return reply.status(200).send({
-      data: result.data,
-      meta: result.meta,
-    });
+    const formattedResponse = formatSuccessResponse(
+      result.data,
+      200,
+      'Blacklist retrieved successfully',
+      result.meta
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Failed to get blacklist', {
       error: error instanceof Error ? error.message : String(error),
     });
 
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Invalid query parameters',
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Invalid query parameters',
+          400,
+          error.errors
+        )
+      );
     }
 
-    return reply.status(500).send({
-      error: {
-        message: 'Failed to get blacklist',
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        'Failed to get blacklist',
+        500
+      )
+    );
   }
 }
 
@@ -202,28 +224,35 @@ export async function addToWhitelistHandler(
       expiresAt: body.expiresAt ? new Date(body.expiresAt) : undefined,
     });
 
-    return reply.status(201).send({
-      data: result,
-    });
+    const formattedResponse = formatSuccessResponse(
+      result,
+      201,
+      'IP added to whitelist successfully'
+    );
+    return reply.status(201).send(formattedResponse);
   } catch (error) {
     logger.error('Failed to add IP to whitelist', {
       error: error instanceof Error ? error.message : String(error),
     });
 
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Invalid request body',
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Invalid request body',
+          400,
+          error.errors
+        )
+      );
     }
 
-    return reply.status(500).send({
-      error: {
-        message: 'Failed to add IP to whitelist',
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        'Failed to add IP to whitelist',
+        500
+      )
+    );
   }
 }
 
@@ -240,9 +269,12 @@ export async function removeFromWhitelistHandler(
 
     await ipManagementService.removeFromWhitelist(ipAddress);
 
-    return reply.status(200).send({
-      message: 'IP removed from whitelist',
-    });
+    const formattedResponse = formatSuccessResponse(
+      null,
+      200,
+      'IP removed from whitelist successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Failed to remove IP from whitelist', {
       error: error instanceof Error ? error.message : String(error),
@@ -250,18 +282,22 @@ export async function removeFromWhitelistHandler(
     });
 
     if (error instanceof Error && error.message.includes('not in whitelist')) {
-      return reply.status(404).send({
-        error: {
-          message: error.message,
-        },
-      });
+      return reply.status(404).send(
+        formatErrorResponse(
+          'NOT_FOUND_ERROR',
+          error.message,
+          404
+        )
+      );
     }
 
-    return reply.status(500).send({
-      error: {
-        message: 'Failed to remove IP from whitelist',
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        'Failed to remove IP from whitelist',
+        500
+      )
+    );
   }
 }
 
@@ -282,29 +318,36 @@ export async function getWhitelistHandler(
       isActive: query.isActive,
     });
 
-    return reply.status(200).send({
-      data: result.data,
-      meta: result.meta,
-    });
+    const formattedResponse = formatSuccessResponse(
+      result.data,
+      200,
+      'Whitelist retrieved successfully',
+      result.meta
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Failed to get whitelist', {
       error: error instanceof Error ? error.message : String(error),
     });
 
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Invalid query parameters',
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Invalid query parameters',
+          400,
+          error.errors
+        )
+      );
     }
 
-    return reply.status(500).send({
-      error: {
-        message: 'Failed to get whitelist',
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        'Failed to get whitelist',
+        500
+      )
+    );
   }
 }
 
@@ -344,9 +387,12 @@ export async function toggleBlacklistStatusHandler(
 
     await ipManagementService.toggleBlacklistStatus(ipAddress, body.isActive);
 
-    return reply.status(200).send({
-      message: `IP blacklist status ${body.isActive ? 'enabled' : 'disabled'}`,
-    });
+    const formattedResponse = formatSuccessResponse(
+      null,
+      200,
+      `IP blacklist status ${body.isActive ? 'enabled' : 'disabled'} successfully`
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Failed to toggle blacklist status', {
       error: error instanceof Error ? error.message : String(error),
@@ -354,27 +400,33 @@ export async function toggleBlacklistStatusHandler(
     });
 
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Invalid request body',
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Invalid request body',
+          400,
+          error.errors
+        )
+      );
     }
 
     if (error instanceof Error && error.message.includes('not in blacklist')) {
-      return reply.status(404).send({
-        error: {
-          message: error.message,
-        },
-      });
+      return reply.status(404).send(
+        formatErrorResponse(
+          'NOT_FOUND_ERROR',
+          error.message,
+          404
+        )
+      );
     }
 
-    return reply.status(500).send({
-      error: {
-        message: 'Failed to toggle blacklist status',
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        'Failed to toggle blacklist status',
+        500
+      )
+    );
   }
 }
 
@@ -392,9 +444,12 @@ export async function toggleWhitelistStatusHandler(
 
     await ipManagementService.toggleWhitelistStatus(ipAddress, body.isActive);
 
-    return reply.status(200).send({
-      message: `IP whitelist status ${body.isActive ? 'enabled' : 'disabled'}`,
-    });
+    const formattedResponse = formatSuccessResponse(
+      null,
+      200,
+      `IP whitelist status ${body.isActive ? 'enabled' : 'disabled'} successfully`
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Failed to toggle whitelist status', {
       error: error instanceof Error ? error.message : String(error),
@@ -402,27 +457,33 @@ export async function toggleWhitelistStatusHandler(
     });
 
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Invalid request body',
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Invalid request body',
+          400,
+          error.errors
+        )
+      );
     }
 
     if (error instanceof Error && error.message.includes('not in whitelist')) {
-      return reply.status(404).send({
-        error: {
-          message: error.message,
-        },
-      });
+      return reply.status(404).send(
+        formatErrorResponse(
+          'NOT_FOUND_ERROR',
+          error.message,
+          404
+        )
+      );
     }
 
-    return reply.status(500).send({
-      error: {
-        message: 'Failed to toggle whitelist status',
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        'Failed to toggle whitelist status',
+        500
+      )
+    );
   }
 }
 

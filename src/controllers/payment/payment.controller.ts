@@ -22,6 +22,7 @@ import {
   completePayment,
   cancelPayment,
 } from '../../services/payment/payment.service';
+import { formatSuccessResponse, formatErrorResponse } from '../../utils/response-format';
 
 /**
  * Helper to get tenantId from multiple sources
@@ -80,33 +81,33 @@ export async function createPaymentHandler(
     const userId = authRequest.user?.userId;
     
     if (!userId) {
-      return reply.status(401).send({
-        error: {
-          message: 'Unauthorized: User not found',
-          statusCode: 401,
-        },
-      });
+      return reply.status(401).send(
+        formatErrorResponse(
+          'AUTH_ERROR',
+          'Unauthorized: User not found',
+          401
+        )
+      );
     }
 
     const tenantId = await getTenantId(request, userId);
     
     if (!tenantId) {
-      return reply.status(401).send({
-        error: {
-          message: 'Unauthorized: Tenant not found',
-          statusCode: 401,
-        },
-      });
+      return reply.status(401).send(
+        formatErrorResponse(
+          'AUTH_ERROR',
+          'Unauthorized: Tenant not found',
+          401
+        )
+      );
     }
 
     const { amount } = createPaymentSchema.parse(request.body);
 
     const payment = await createPayment(tenantId, userId, amount);
 
-    return reply.status(201).send({
-      success: true,
-      message: 'Tạo lệnh nạp tiền thành công',
-      data: {
+    const formattedResponse = formatSuccessResponse(
+      {
         id: payment.id,
         code: payment.code,
         amount: payment.amount,
@@ -120,25 +121,30 @@ export async function createPaymentHandler(
           content: payment.code,
         },
       },
-    });
+      201,
+      'Tạo lệnh nạp tiền thành công'
+    );
+    return reply.status(201).send(formattedResponse);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Validation error',
-          statusCode: 400,
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Validation error',
+          400,
+          error.errors
+        )
+      );
     }
 
     logger.error('Create payment error:', error);
-    return reply.status(400).send({
-      error: {
-        message: error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 400,
-      },
-    });
+    return reply.status(400).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        400
+      )
+    );
   }
 }
 
@@ -157,23 +163,25 @@ export async function getPaymentHistoryHandler(
     const userId = authRequest.user?.userId;
     
     if (!userId) {
-      return reply.status(401).send({
-        error: {
-          message: 'Unauthorized: User not found',
-          statusCode: 401,
-        },
-      });
+      return reply.status(401).send(
+        formatErrorResponse(
+          'AUTH_ERROR',
+          'Unauthorized: User not found',
+          401
+        )
+      );
     }
 
     const tenantId = await getTenantId(request, userId);
     
     if (!tenantId) {
-      return reply.status(401).send({
-        error: {
-          message: 'Unauthorized: Tenant not found',
-          statusCode: 401,
-        },
-      });
+      return reply.status(401).send(
+        formatErrorResponse(
+          'AUTH_ERROR',
+          'Unauthorized: Tenant not found',
+          401
+        )
+      );
     }
 
     const page = parseInt(request.query.page || '1', 10);
@@ -201,24 +209,27 @@ export async function getPaymentHistoryHandler(
       (prisma as any).payment.count({ where }),
     ]);
 
-    return reply.status(200).send({
-      success: true,
-      data: payments,
-      meta: {
+    const formattedResponse = formatSuccessResponse(
+      payments,
+      200,
+      'Payment history retrieved successfully',
+      {
         page,
         limit,
         total,
         totalPages: Math.ceil(total / limit),
-      },
-    });
+      }
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Get payment history error:', error);
-    return reply.status(500).send({
-      error: {
-        message: 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -235,23 +246,25 @@ export async function getPaymentDetailHandler(
     const userId = authRequest.user?.userId;
     
     if (!userId) {
-      return reply.status(401).send({
-        error: {
-          message: 'Unauthorized: User not found',
-          statusCode: 401,
-        },
-      });
+      return reply.status(401).send(
+        formatErrorResponse(
+          'AUTH_ERROR',
+          'Unauthorized: User not found',
+          401
+        )
+      );
     }
 
     const tenantId = await getTenantId(request, userId);
     
     if (!tenantId) {
-      return reply.status(401).send({
-        error: {
-          message: 'Unauthorized: Tenant not found',
-          statusCode: 401,
-        },
-      });
+      return reply.status(401).send(
+        formatErrorResponse(
+          'AUTH_ERROR',
+          'Unauthorized: Tenant not found',
+          401
+        )
+      );
     }
 
     const { id } = paymentIdParamSchema.parse(request.params);
@@ -265,26 +278,30 @@ export async function getPaymentDetailHandler(
     });
 
     if (!payment) {
-      return reply.status(404).send({
-        error: {
-          message: 'Payment not found',
-          statusCode: 404,
-        },
-      });
+      return reply.status(404).send(
+        formatErrorResponse(
+          'NOT_FOUND_ERROR',
+          'Payment not found',
+          404
+        )
+      );
     }
 
-    return reply.status(200).send({
-      success: true,
-      data: payment,
-    });
+    const formattedResponse = formatSuccessResponse(
+      payment,
+      200,
+      'Payment detail retrieved successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Get payment detail error:', error);
-    return reply.status(500).send({
-      error: {
-        message: 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -302,30 +319,34 @@ export async function getPaymentStatusHandler(
     const payment = await findPaymentByCode(code);
 
     if (!payment) {
-      return reply.status(404).send({
-        error: {
-          message: 'Payment not found',
-          statusCode: 404,
-        },
-      });
+      return reply.status(404).send(
+        formatErrorResponse(
+          'NOT_FOUND_ERROR',
+          'Payment not found',
+          404
+        )
+      );
     }
 
-    return reply.status(200).send({
-      success: true,
-      data: {
+    const formattedResponse = formatSuccessResponse(
+      {
         code: payment.code,
         status: payment.status,
         amount: payment.amount,
       },
-    });
+      200,
+      'Payment status retrieved successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Get payment status error:', error);
-    return reply.status(500).send({
-      error: {
-        message: 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -342,23 +363,25 @@ export async function getPendingPaymentHandler(
     const userId = authRequest.user?.userId;
     
     if (!userId) {
-      return reply.status(401).send({
-        error: {
-          message: 'Unauthorized: User not found',
-          statusCode: 401,
-        },
-      });
+      return reply.status(401).send(
+        formatErrorResponse(
+          'AUTH_ERROR',
+          'Unauthorized: User not found',
+          401
+        )
+      );
     }
 
     const tenantId = await getTenantId(request, userId);
     
     if (!tenantId) {
-      return reply.status(401).send({
-        error: {
-          message: 'Unauthorized: Tenant not found',
-          statusCode: 401,
-        },
-      });
+      return reply.status(401).send(
+        formatErrorResponse(
+          'AUTH_ERROR',
+          'Unauthorized: Tenant not found',
+          401
+        )
+      );
     }
 
     const payment = await (prisma as any).payment.findFirst({
@@ -372,17 +395,17 @@ export async function getPendingPaymentHandler(
     });
 
     if (!payment) {
-      return reply.status(404).send({
-        error: {
-          message: 'No pending payment found',
-          statusCode: 404,
-        },
-      });
+      return reply.status(404).send(
+        formatErrorResponse(
+          'NOT_FOUND_ERROR',
+          'No pending payment found',
+          404
+        )
+      );
     }
 
-    return reply.status(200).send({
-      success: true,
-      data: {
+    const formattedResponse = formatSuccessResponse(
+      {
         ...payment,
         paymentInfo: {
           account: config.sepay.account,
@@ -391,15 +414,19 @@ export async function getPendingPaymentHandler(
           content: payment.code,
         },
       },
-    });
+      200,
+      'Pending payment retrieved successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Get pending payment error:', error);
-    return reply.status(500).send({
-      error: {
-        message: 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -417,23 +444,25 @@ export async function cancelPendingPaymentHandler(
     const userId = authRequest.user?.userId;
 
     if (!userId) {
-      return reply.status(401).send({
-        error: {
-          message: 'Unauthorized: User not found',
-          statusCode: 401,
-        },
-      });
+      return reply.status(401).send(
+        formatErrorResponse(
+          'AUTH_ERROR',
+          'Unauthorized: User not found',
+          401
+        )
+      );
     }
 
     const tenantId = await getTenantId(request, userId);
     
     if (!tenantId) {
-      return reply.status(401).send({
-        error: {
-          message: 'Unauthorized: Tenant not found',
-          statusCode: 401,
-        },
-      });
+      return reply.status(401).send(
+        formatErrorResponse(
+          'AUTH_ERROR',
+          'Unauthorized: Tenant not found',
+          401
+        )
+      );
     }
 
     // Tìm payment pending (chưa hết hạn)
@@ -466,47 +495,51 @@ export async function cancelPendingPaymentHandler(
           data: { status: 'expired' },
         });
         
-        return reply.status(404).send({
-          error: {
-            message: 'Payment đã hết hạn. Vui lòng tạo lệnh nạp mới.',
-            statusCode: 404,
-            details: {
+        return reply.status(404).send(
+          formatErrorResponse(
+            'NOT_FOUND_ERROR',
+            'Payment đã hết hạn. Vui lòng tạo lệnh nạp mới.',
+            404,
+            {
               paymentId: expiredPending.id,
               code: expiredPending.code,
               expiredAt: expiredPending.expiresAt,
-            },
-          },
-        });
+            }
+          )
+        );
       }
 
       // Không có payment pending nào
-      return reply.status(404).send({
-        error: {
-          message: 'Không tìm thấy giao dịch đang chờ thanh toán',
-          statusCode: 404,
-        },
-      });
+      return reply.status(404).send(
+        formatErrorResponse(
+          'NOT_FOUND_ERROR',
+          'Không tìm thấy giao dịch đang chờ thanh toán',
+          404
+        )
+      );
     }
 
     await cancelPayment(payment.id, userId, tenantId);
 
-    return reply.status(200).send({
-      success: true,
-      message: 'Đã hủy giao dịch thành công',
-      data: {
+    const formattedResponse = formatSuccessResponse(
+      {
         id: payment.id,
         code: payment.code,
         status: 'cancelled',
       },
-    });
+      200,
+      'Đã hủy giao dịch thành công'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Cancel pending payment error:', error);
-    return reply.status(400).send({
-      error: {
-        message: error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 400,
-      },
-    });
+    return reply.status(400).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        400
+      )
+    );
   }
 }
 
@@ -524,23 +557,25 @@ export async function cancelPaymentByIdHandler(
     const userId = authRequest.user?.userId;
 
     if (!userId) {
-      return reply.status(401).send({
-        error: {
-          message: 'Unauthorized: User not found',
-          statusCode: 401,
-        },
-      });
+      return reply.status(401).send(
+        formatErrorResponse(
+          'AUTH_ERROR',
+          'Unauthorized: User not found',
+          401
+        )
+      );
     }
 
     const tenantId = await getTenantId(request, userId);
     
     if (!tenantId) {
-      return reply.status(401).send({
-        error: {
-          message: 'Unauthorized: Tenant not found',
-          statusCode: 401,
-        },
-      });
+      return reply.status(401).send(
+        formatErrorResponse(
+          'AUTH_ERROR',
+          'Unauthorized: Tenant not found',
+          401
+        )
+      );
     }
 
     const { id } = paymentIdParamSchema.parse(request.params);
@@ -555,46 +590,50 @@ export async function cancelPaymentByIdHandler(
     });
 
     if (!payment) {
-      return reply.status(404).send({
-        error: {
-          message: 'Payment not found',
-          statusCode: 404,
-        },
-      });
+      return reply.status(404).send(
+        formatErrorResponse(
+          'NOT_FOUND_ERROR',
+          'Payment not found',
+          404
+        )
+      );
     }
 
     // Cancel payment
     await cancelPayment(id, userId, tenantId);
 
-    return reply.status(200).send({
-      success: true,
-      message: 'Đã hủy giao dịch thành công',
-      data: {
+    const formattedResponse = formatSuccessResponse(
+      {
         id: payment.id,
         code: payment.code,
         status: 'cancelled',
         cancelledAt: new Date(),
       },
-    });
+      200,
+      'Đã hủy giao dịch thành công'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Cancel payment by ID error:', error);
     
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Validation error',
-          statusCode: 400,
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Validation error',
+          400,
+          error.errors
+        )
+      );
     }
 
-    return reply.status(400).send({
-      error: {
-        message: error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 400,
-      },
-    });
+    return reply.status(400).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        400
+      )
+    );
   }
 }
 
@@ -674,12 +713,13 @@ export async function sepayWebhookHandler(
           amount: webhookAmount,
         },
       });
-      return reply.status(404).send({
-        error: {
-          message: 'Payment not found',
-          statusCode: 404,
-        },
-      });
+      return reply.status(404).send(
+        formatErrorResponse(
+          'NOT_FOUND_ERROR',
+          'Payment not found',
+          404
+        )
+      );
     }
 
     // Verify amount matches
@@ -692,29 +732,33 @@ export async function sepayWebhookHandler(
         received: webhookAmount,
         webhookData,
       });
-      return reply.status(400).send({
-        error: {
-          message: 'Amount mismatch',
-          statusCode: 400,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Amount mismatch',
+          400
+        )
+      );
     }
 
     // Complete payment
     await completePayment(payment.id, webhookData);
 
-    return reply.status(200).send({
-      success: true,
-      message: 'Webhook processed successfully',
-    });
+    const formattedResponse = formatSuccessResponse(
+      null,
+      200,
+      'Webhook processed successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Sepay webhook error:', error);
-    return reply.status(500).send({
-      error: {
-        message: 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -733,12 +777,13 @@ export async function getAllPaymentsHandler(
     const role = authRequest.user?.role;
 
     if (role !== 'sp-admin') {
-      return reply.status(403).send({
-        error: {
-          message: 'Forbidden: Super admin only',
-          statusCode: 403,
-        },
-      });
+      return reply.status(403).send(
+        formatErrorResponse(
+          'FORBIDDEN_ERROR',
+          'Forbidden: Super admin only',
+          403
+        )
+      );
     }
 
     const page = parseInt(request.query.page || '1', 10);
@@ -766,24 +811,27 @@ export async function getAllPaymentsHandler(
       (prisma as any).payment.count({ where }),
     ]);
 
-    return reply.status(200).send({
-      success: true,
-      data: payments,
-      meta: {
+    const formattedResponse = formatSuccessResponse(
+      payments,
+      200,
+      'All payments retrieved successfully',
+      {
         page,
         limit,
         total,
         totalPages: Math.ceil(total / limit),
-      },
-    });
+      }
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Get all payments error:', error);
-    return reply.status(500).send({
-      error: {
-        message: 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -800,30 +848,34 @@ export async function manualCompletePaymentHandler(
     const role = authRequest.user?.role;
 
     if (role !== 'sp-admin') {
-      return reply.status(403).send({
-        error: {
-          message: 'Forbidden: Super admin only',
-          statusCode: 403,
-        },
-      });
+      return reply.status(403).send(
+        formatErrorResponse(
+          'FORBIDDEN_ERROR',
+          'Forbidden: Super admin only',
+          403
+        )
+      );
     }
 
     const { id } = paymentIdParamSchema.parse(request.params);
 
     await completePayment(id, { manual: true, adminId: authRequest.user?.userId });
 
-    return reply.status(200).send({
-      success: true,
-      message: 'Payment completed manually',
-    });
+    const formattedResponse = formatSuccessResponse(
+      null,
+      200,
+      'Payment completed manually'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Manual complete payment error:', error);
-    return reply.status(400).send({
-      error: {
-        message: error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 400,
-      },
-    });
+    return reply.status(400).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        400
+      )
+    );
   }
 }
 

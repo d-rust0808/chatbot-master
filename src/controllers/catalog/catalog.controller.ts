@@ -11,6 +11,7 @@ import { z } from 'zod';
 import { prisma } from '../../infrastructure/database';
 import { logger } from '../../infrastructure/logger';
 import type { AuthenticatedRequest } from '../../types/auth';
+import { formatSuccessResponse, formatErrorResponse } from '../../utils/response-format';
 
 const tenantParamSchema = z.object({
   tenantId: z.string().min(1),
@@ -110,35 +111,38 @@ export async function listCategoriesHandler(
       prisma.category.count({ where }),
     ]);
 
-    return reply.status(200).send({
-      success: true,
-      data: categories,
-      meta: {
+    const formattedResponse = formatSuccessResponse(
+      categories,
+      200,
+      'Categories retrieved successfully',
+      {
         page,
         limit,
         total,
         totalPages: Math.ceil(total / limit),
-      },
-    });
+      }
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Validation error',
-          statusCode: 400,
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Validation error',
+          400,
+          error.errors
+        )
+      );
     }
 
     logger.error('List categories error:', error);
-    return reply.status(500).send({
-      error: {
-        message:
-          error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -164,29 +168,32 @@ export async function createCategoryHandler(
       },
     });
 
-    return reply.status(201).send({
-      success: true,
-      data: created,
-    });
+    const formattedResponse = formatSuccessResponse(
+      created,
+      201,
+      'Category created successfully'
+    );
+    return reply.status(201).send(formattedResponse);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Validation error',
-          statusCode: 400,
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Validation error',
+          400,
+          error.errors
+        )
+      );
     }
 
     logger.error('Create category error:', error);
-    return reply.status(500).send({
-      error: {
-        message:
-          error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -207,12 +214,13 @@ export async function updateCategoryHandler(
     });
 
     if (!existing) {
-      return reply.status(404).send({
-        error: {
-          message: 'Category not found',
-          statusCode: 404,
-        },
-      });
+      return reply.status(404).send(
+        formatErrorResponse(
+          'NOT_FOUND_ERROR',
+          'Category not found',
+          404
+        )
+      );
     }
 
     const updated = await prisma.category.update({
@@ -220,29 +228,32 @@ export async function updateCategoryHandler(
       data: body,
     });
 
-    return reply.status(200).send({
-      success: true,
-      data: updated,
-    });
+    const formattedResponse = formatSuccessResponse(
+      updated,
+      200,
+      'Category updated successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Validation error',
-          statusCode: 400,
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Validation error',
+          400,
+          error.errors
+        )
+      );
     }
 
     logger.error('Update category error:', error);
-    return reply.status(500).send({
-      error: {
-        message:
-          error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -261,28 +272,34 @@ export async function deleteCategoryHandler(
     });
 
     if (!existing) {
-      return reply.status(404).send({
-        error: {
-          message: 'Category not found',
-          statusCode: 404,
-        },
-      });
+      return reply.status(404).send(
+        formatErrorResponse(
+          'NOT_FOUND_ERROR',
+          'Category not found',
+          404
+        )
+      );
     }
 
     await prisma.category.delete({
       where: { id: categoryId },
     });
 
-    return reply.status(204).send();
+    const formattedResponse = formatSuccessResponse(
+      null,
+      204,
+      'Category deleted successfully'
+    );
+    return reply.status(204).send(formattedResponse);
   } catch (error) {
     logger.error('Delete category error:', error);
-    return reply.status(500).send({
-      error: {
-        message:
-          error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -327,35 +344,38 @@ export async function listProductsHandler(
       prisma.product.count({ where }),
     ]);
 
-    return reply.status(200).send({
-      success: true,
-      data: products,
-      meta: {
+    const formattedResponse = formatSuccessResponse(
+      products,
+      200,
+      'Products retrieved successfully',
+      {
         page,
         limit,
         total,
         totalPages: Math.ceil(total / limit),
-      },
-    });
+      }
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Validation error',
-          statusCode: 400,
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Validation error',
+          400,
+          error.errors
+        )
+      );
     }
 
     logger.error('List products error:', error);
-    return reply.status(500).send({
-      error: {
-        message:
-          error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -385,29 +405,32 @@ export async function createProductHandler(
       },
     });
 
-    return reply.status(201).send({
-      success: true,
-      data: created,
-    });
+    const formattedResponse = formatSuccessResponse(
+      created,
+      201,
+      'Product created successfully'
+    );
+    return reply.status(201).send(formattedResponse);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Validation error',
-          statusCode: 400,
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Validation error',
+          400,
+          error.errors
+        )
+      );
     }
 
     logger.error('Create product error:', error);
-    return reply.status(500).send({
-      error: {
-        message:
-          error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -444,29 +467,32 @@ export async function updateProductHandler(
       } as any,
     });
 
-    return reply.status(200).send({
-      success: true,
-      data: updated,
-    });
+    const formattedResponse = formatSuccessResponse(
+      updated,
+      200,
+      'Product updated successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Validation error',
-          statusCode: 400,
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Validation error',
+          400,
+          error.errors
+        )
+      );
     }
 
     logger.error('Update product error:', error);
-    return reply.status(500).send({
-      error: {
-        message:
-          error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -497,16 +523,21 @@ export async function deleteProductHandler(
       where: { id: productId },
     });
 
-    return reply.status(204).send();
+    const formattedResponse = formatSuccessResponse(
+      null,
+      204,
+      'Product deleted successfully'
+    );
+    return reply.status(204).send(formattedResponse);
   } catch (error) {
     logger.error('Delete product error:', error);
-    return reply.status(500).send({
-      error: {
-        message:
-          error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 

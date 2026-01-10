@@ -25,6 +25,7 @@ import {
 import { logger } from '../../infrastructure/logger';
 import type { AuthenticatedRequest } from '../../types/auth';
 import { InsufficientCreditsError } from '../../errors/wallet/credit.errors';
+import { formatSuccessResponse, formatErrorResponse } from '../../utils/response-format';
 
 const packageIdParamSchema = z.object({
   packageId: z.string().min(1),
@@ -52,18 +53,21 @@ export async function getServicePackagesHandler(
     const service = request.query.service;
     const packages = await getServicePackages(service);
 
-    return reply.status(200).send({
-      success: true,
-      data: packages,
-    });
+    const formattedResponse = formatSuccessResponse(
+      packages,
+      200,
+      'Service packages retrieved successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Get service packages error:', error);
-    return reply.status(500).send({
-      error: {
-        message: 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -84,12 +88,13 @@ export async function purchaseServicePackageHandler(
     const tenantId = authRequest.user?.tenantId;
 
     if (!tenantId) {
-      return reply.status(401).send({
-        error: {
-          message: 'Unauthorized',
-          statusCode: 401,
-        },
-      });
+      return reply.status(401).send(
+        formatErrorResponse(
+          'AUTH_ERROR',
+          'Unauthorized',
+          401
+        )
+      );
     }
 
     const { packageId } = packageIdParamSchema.parse(request.params);
@@ -97,29 +102,31 @@ export async function purchaseServicePackageHandler(
 
     const result = await purchaseServicePackage(tenantId, packageId, duration);
 
-    return reply.status(200).send({
-      success: true,
-      message: `Đã mua gói ${result.packageName} ${result.duration} tháng thành công`,
-      data: result,
-    });
+    const formattedResponse = formatSuccessResponse(
+      result,
+      200,
+      `Đã mua gói ${result.packageName} ${result.duration} tháng thành công`
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     if (error instanceof InsufficientCreditsError) {
-      return reply.status(400).send({
-        error: {
-          message: error.message,
-          statusCode: 400,
-          code: 'INSUFFICIENT_VND_BALANCE',
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'INSUFFICIENT_VND_BALANCE',
+          error.message,
+          400
+        )
+      );
     }
 
     logger.error('Purchase service package error:', error);
-    return reply.status(400).send({
-      error: {
-        message: error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 400,
-      },
-    });
+    return reply.status(400).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        400
+      )
+    );
   }
 }
 
@@ -136,28 +143,32 @@ export async function getTenantSubscriptionsHandler(
     const tenantId = authRequest.user?.tenantId;
 
     if (!tenantId) {
-      return reply.status(401).send({
-        error: {
-          message: 'Unauthorized',
-          statusCode: 401,
-        },
-      });
+      return reply.status(401).send(
+        formatErrorResponse(
+          'AUTH_ERROR',
+          'Unauthorized',
+          401
+        )
+      );
     }
 
     const subscriptions = await getTenantSubscriptions(tenantId);
 
-    return reply.status(200).send({
-      success: true,
-      data: subscriptions,
-    });
+    const formattedResponse = formatSuccessResponse(
+      subscriptions,
+      200,
+      'Tenant subscriptions retrieved successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Get tenant subscriptions error:', error);
-    return reply.status(500).send({
-      error: {
-        message: 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -175,28 +186,32 @@ export async function getMyActiveSubscriptionsHandler(
     const tenantId = authRequest.user?.tenantId;
 
     if (!tenantId) {
-      return reply.status(401).send({
-        error: {
-          message: 'Unauthorized',
-          statusCode: 401,
-        },
-      });
+      return reply.status(401).send(
+        formatErrorResponse(
+          'AUTH_ERROR',
+          'Unauthorized',
+          401
+        )
+      );
     }
 
     const subscriptions = await getActiveSubscriptionsForSidebar(tenantId);
 
-    return reply.status(200).send({
-      success: true,
-      data: subscriptions,
-    });
+    const formattedResponse = formatSuccessResponse(
+      subscriptions,
+      200,
+      'Active subscriptions retrieved successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Get active subscriptions for sidebar error:', error);
-    return reply.status(500).send({
-      error: {
-        message: 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -216,29 +231,33 @@ export async function checkServiceActiveHandler(
     const tenantId = authRequest.user?.tenantId;
 
     if (!tenantId) {
-      return reply.status(401).send({
-        error: {
-          message: 'Unauthorized',
-          statusCode: 401,
-        },
-      });
+      return reply.status(401).send(
+        formatErrorResponse(
+          'AUTH_ERROR',
+          'Unauthorized',
+          401
+        )
+      );
     }
 
     const { service } = request.params;
     const result = await checkServiceActive(tenantId, service);
 
-    return reply.status(200).send({
-      success: true,
-      data: result,
-    });
+    const formattedResponse = formatSuccessResponse(
+      result,
+      200,
+      'Service status checked successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Check service active error:', error);
-    return reply.status(500).send({
-      error: {
-        message: 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -257,30 +276,34 @@ export async function cancelSubscriptionHandler(
     const tenantId = authRequest.user?.tenantId;
 
     if (!tenantId) {
-      return reply.status(401).send({
-        error: {
-          message: 'Unauthorized',
-          statusCode: 401,
-        },
-      });
+      return reply.status(401).send(
+        formatErrorResponse(
+          'AUTH_ERROR',
+          'Unauthorized',
+          401
+        )
+      );
     }
 
     const { subscriptionId } = subscriptionIdParamSchema.parse(request.params);
 
     await cancelSubscription(tenantId, subscriptionId);
 
-    return reply.status(200).send({
-      success: true,
-      message: 'Đã hủy đăng ký gói dịch vụ',
-    });
+    const formattedResponse = formatSuccessResponse(
+      null,
+      200,
+      'Đã hủy đăng ký gói dịch vụ'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Cancel subscription error:', error);
-    return reply.status(400).send({
-      error: {
-        message: error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 400,
-      },
-    });
+    return reply.status(400).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        400
+      )
+    );
   }
 }
 
@@ -326,29 +349,32 @@ export async function createServicePackageHandler(
     const validatedData = createServicePackageSchema.parse(request.body);
     const result = await createServicePackage(validatedData);
 
-    return reply.status(201).send({
-      success: true,
-      message: 'Đã tạo gói dịch vụ thành công',
-      data: result,
-    });
+    const formattedResponse = formatSuccessResponse(
+      result,
+      201,
+      'Đã tạo gói dịch vụ thành công'
+    );
+    return reply.status(201).send(formattedResponse);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Validation error',
-          statusCode: 400,
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Validation error',
+          400,
+          error.errors
+        )
+      );
     }
 
     logger.error('Create service package error:', error);
-    return reply.status(400).send({
-      error: {
-        message: error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 400,
-      },
-    });
+    return reply.status(400).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        400
+      )
+    );
   }
 }
 
@@ -373,18 +399,21 @@ export async function getAllServicePackagesAdminHandler(
 
     const packages = await getAllServicePackagesAdmin(filters);
 
-    return reply.status(200).send({
-      success: true,
-      data: packages,
-    });
+    const formattedResponse = formatSuccessResponse(
+      packages,
+      200,
+      'Service packages retrieved successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Get all service packages admin error:', error);
-    return reply.status(500).send({
-      error: {
-        message: 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -402,18 +431,21 @@ export async function getServicePackageByIdAdminHandler(
     const { id } = request.params;
     const servicePackage = await getServicePackageByIdAdmin(id);
 
-    return reply.status(200).send({
-      success: true,
-      data: servicePackage,
-    });
+    const formattedResponse = formatSuccessResponse(
+      servicePackage,
+      200,
+      'Service package retrieved successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Get service package by ID admin error:', error);
-    return reply.status(404).send({
-      error: {
-        message: error instanceof Error ? error.message : 'Service package not found',
-        statusCode: 404,
-      },
-    });
+    return reply.status(404).send(
+      formatErrorResponse(
+        'NOT_FOUND_ERROR',
+        error instanceof Error ? error.message : 'Service package not found',
+        404
+      )
+    );
   }
 }
 
@@ -433,29 +465,32 @@ export async function updateServicePackageHandler(
     const validatedData = updateServicePackageSchema.parse(request.body);
     const result = await updateServicePackage(id, validatedData);
 
-    return reply.status(200).send({
-      success: true,
-      message: 'Đã cập nhật gói dịch vụ thành công',
-      data: result,
-    });
+    const formattedResponse = formatSuccessResponse(
+      result,
+      200,
+      'Đã cập nhật gói dịch vụ thành công'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Validation error',
-          statusCode: 400,
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Validation error',
+          400,
+          error.errors
+        )
+      );
     }
 
     logger.error('Update service package error:', error);
-    return reply.status(400).send({
-      error: {
-        message: error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 400,
-      },
-    });
+    return reply.status(400).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        400
+      )
+    );
   }
 }
 
@@ -473,18 +508,21 @@ export async function deleteServicePackageHandler(
     const { id } = request.params;
     await deleteServicePackage(id);
 
-    return reply.status(200).send({
-      success: true,
-      message: 'Đã xóa gói dịch vụ thành công',
-    });
+    const formattedResponse = formatSuccessResponse(
+      null,
+      200,
+      'Đã xóa gói dịch vụ thành công'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Delete service package error:', error);
-    return reply.status(400).send({
-      error: {
-        message: error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 400,
-      },
-    });
+    return reply.status(400).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        400
+      )
+    );
   }
 }
 

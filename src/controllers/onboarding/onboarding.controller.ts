@@ -16,6 +16,7 @@ import { promptParserService } from '../../services/onboarding/prompt-parser.ser
 import { configGeneratorService } from '../../services/onboarding/config-generator.service';
 import { autoSetupService } from '../../services/onboarding/auto-setup.service';
 import type { SetupProgress } from '../../services/onboarding/auto-setup.service';
+import { formatSuccessResponse, formatErrorResponse } from '../../utils/response-format';
 
 // Validation schemas
 const onboardingSchema = z.object({
@@ -53,14 +54,15 @@ export async function onboardFromPromptHandler(
 
     // If autoExecute is false, return config for confirmation
     if (!validated.autoExecute) {
-      return reply.status(200).send({
-        success: true,
-        data: {
+      const formattedResponse = formatSuccessResponse(
+        {
           intent,
           config,
-          message: 'Configuration generated. Review and confirm to proceed.',
         },
-      });
+        200,
+        'Configuration generated. Review and confirm to proceed.'
+      );
+      return reply.status(200).send(formattedResponse);
     }
 
     // Step 3: Execute auto-setup
@@ -75,43 +77,49 @@ export async function onboardFromPromptHandler(
     );
 
     if (result.success) {
-      return reply.status(200).send({
-        success: true,
-        data: {
+      const formattedResponse = formatSuccessResponse(
+        {
           chatbotId: result.chatbotId,
           platformConnections: result.platformConnections,
           progress: progressUpdates,
-          message: 'Onboarding completed successfully',
         },
-      });
+        200,
+        'Onboarding completed successfully'
+      );
+      return reply.status(200).send(formattedResponse);
     } else {
-      return reply.status(500).send({
-        success: false,
-        error: {
-          message: 'Onboarding failed',
-          errors: result.errors,
-          progress: progressUpdates,
-        },
-      });
+      return reply.status(500).send(
+        formatErrorResponse(
+          'ONBOARDING_ERROR',
+          'Onboarding failed',
+          500,
+          {
+            errors: result.errors,
+            progress: progressUpdates,
+          }
+        )
+      );
     }
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Validation error',
-          statusCode: 400,
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Validation error',
+          400,
+          error.errors
+        )
+      );
     }
 
     logger.error('Onboarding error:', error);
-    return reply.status(500).send({
-      error: {
-        message: error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -131,12 +139,13 @@ export async function confirmOnboardingHandler(
 
     const config = request.body.config;
     if (!config || !config.chatbot) {
-      return reply.status(400).send({
-        error: {
-          message: 'Invalid configuration',
-          statusCode: 400,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Invalid configuration',
+          400
+        )
+      );
     }
 
     logger.info('Confirming onboarding', { tenantId: tenant.id });
@@ -152,33 +161,38 @@ export async function confirmOnboardingHandler(
     );
 
     if (result.success) {
-      return reply.status(200).send({
-        success: true,
-        data: {
+      const formattedResponse = formatSuccessResponse(
+        {
           chatbotId: result.chatbotId,
           platformConnections: result.platformConnections,
           progress: progressUpdates,
-          message: 'Onboarding completed successfully',
         },
-      });
+        200,
+        'Onboarding completed successfully'
+      );
+      return reply.status(200).send(formattedResponse);
     } else {
-      return reply.status(500).send({
-        success: false,
-        error: {
-          message: 'Onboarding failed',
-          errors: result.errors,
-          progress: progressUpdates,
-        },
-      });
+      return reply.status(500).send(
+        formatErrorResponse(
+          'ONBOARDING_ERROR',
+          'Onboarding failed',
+          500,
+          {
+            errors: result.errors,
+            progress: progressUpdates,
+          }
+        )
+      );
     }
   } catch (error) {
     logger.error('Confirm onboarding error:', error);
-    return reply.status(500).send({
-      error: {
-        message: error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 

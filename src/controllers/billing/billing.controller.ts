@@ -11,6 +11,7 @@ import { z } from 'zod';
 import { prisma } from '../../infrastructure/database';
 import { logger } from '../../infrastructure/logger';
 import type { AuthenticatedRequest } from '../../types/auth';
+import { formatSuccessResponse, formatErrorResponse } from '../../utils/response-format';
 
 const tenantParamSchema = z.object({
   tenantId: z.string().min(1),
@@ -73,22 +74,24 @@ export async function getTenantSubscriptionHandler(
       }),
     ]);
 
-    return reply.status(200).send({
-      success: true,
-      data: {
+    const formattedResponse = formatSuccessResponse(
+      {
         subscription,
         planLimit,
       },
-    });
+      200,
+      'Tenant subscription retrieved successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Get tenant subscription error:', error);
-    return reply.status(500).send({
-      error: {
-        message:
-          error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -118,32 +121,35 @@ export async function getTenantCreditHandler(
       }),
     ]);
 
-    return reply.status(200).send({
-      success: true,
-      data: {
+    const formattedResponse = formatSuccessResponse(
+      {
         wallet,
         transactions,
       },
-    });
+      200,
+      'Tenant credit information retrieved successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Validation error',
-          statusCode: 400,
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Validation error',
+          400,
+          error.errors
+        )
+      );
     }
 
     logger.error('Get tenant credit error:', error);
-    return reply.status(500).send({
-      error: {
-        message:
-          error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 

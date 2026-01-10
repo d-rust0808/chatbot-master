@@ -14,6 +14,7 @@ import { logger } from '../../infrastructure/logger';
 import { requireTenant } from '../../middleware/tenant';
 import { modelService } from '../../services/ai/model.service';
 import { cacheService } from '../../services/cache.service';
+import { formatSuccessResponse, formatErrorResponse } from '../../utils/response-format';
 
 // Validation schemas
 const createChatbotSchema = z.object({
@@ -58,12 +59,13 @@ export async function createChatbotHandler(
     // Verify model is available
     const isAvailable = await modelService.isModelAvailable(validatedData.aiModel);
     if (!isAvailable) {
-      return reply.status(400).send({
-        error: {
-          message: `Model ${validatedData.aiModel} is not available`,
-          statusCode: 400,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          `Model ${validatedData.aiModel} is not available`,
+          400
+        )
+      );
     }
 
     // Create chatbot
@@ -86,28 +88,32 @@ export async function createChatbotHandler(
       3600 // 1 hour
     );
 
-    return reply.status(201).send({
-      success: true,
-      data: chatbot,
-    });
+    const formattedResponse = formatSuccessResponse(
+      chatbot,
+      201,
+      'Chatbot created successfully'
+    );
+    return reply.status(201).send(formattedResponse);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Validation error',
-          statusCode: 400,
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Validation error',
+          400,
+          error.errors
+        )
+      );
     }
 
     logger.error('Create chatbot error:', error);
-    return reply.status(500).send({
-      error: {
-        message: error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -143,24 +149,26 @@ export async function updateChatbotHandler(
     });
 
     if (!existingChatbot) {
-      return reply.status(404).send({
-        error: {
-          message: 'Chatbot not found',
-          statusCode: 404,
-        },
-      });
+      return reply.status(404).send(
+        formatErrorResponse(
+          'NOT_FOUND_ERROR',
+          'Chatbot not found',
+          404
+        )
+      );
     }
 
     // Verify model if updating
     if (validatedData.aiModel && validatedData.aiModel !== existingChatbot.aiModel) {
       const isAvailable = await modelService.isModelAvailable(validatedData.aiModel);
       if (!isAvailable) {
-        return reply.status(400).send({
-          error: {
-            message: `Model ${validatedData.aiModel} is not available`,
-            statusCode: 400,
-          },
-        });
+        return reply.status(400).send(
+          formatErrorResponse(
+            'VALIDATION_ERROR',
+            `Model ${validatedData.aiModel} is not available`,
+            400
+          )
+        );
       }
     }
 
@@ -170,28 +178,32 @@ export async function updateChatbotHandler(
       data: validatedData,
     });
 
-    return reply.status(200).send({
-      success: true,
-      data: chatbot,
-    });
+    const formattedResponse = formatSuccessResponse(
+      chatbot,
+      200,
+      'Chatbot updated successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Validation error',
-          statusCode: 400,
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Validation error',
+          400,
+          error.errors
+        )
+      );
     }
 
     logger.error('Update chatbot error:', error);
-    return reply.status(500).send({
-      error: {
-        message: error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -228,26 +240,30 @@ export async function getChatbotHandler(
     });
 
     if (!chatbot) {
-      return reply.status(404).send({
-        error: {
-          message: 'Chatbot not found',
-          statusCode: 404,
-        },
-      });
+      return reply.status(404).send(
+        formatErrorResponse(
+          'NOT_FOUND_ERROR',
+          'Chatbot not found',
+          404
+        )
+      );
     }
 
-    return reply.status(200).send({
-      success: true,
-      data: chatbot,
-    });
+    const formattedResponse = formatSuccessResponse(
+      chatbot,
+      200,
+      'Chatbot retrieved successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Get chatbot error:', error);
-    return reply.status(500).send({
-      error: {
-        message: 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -284,24 +300,27 @@ export async function listChatbotsHandler(
       }),
     ]);
 
-    return reply.status(200).send({
-      success: true,
-      data: chatbots,
-      meta: {
+    const formattedResponse = formatSuccessResponse(
+      chatbots,
+      200,
+      'Chatbots retrieved successfully',
+      {
         page,
         limit,
         total,
         totalPages: Math.ceil(total / limit),
-      },
-    });
+      }
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('List chatbots error:', error);
-    return reply.status(500).send({
-      error: {
-        message: 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -316,9 +335,8 @@ export async function getAvailableModelsHandler(
     const recommendedModels = await modelService.getRecommendedModels();
     const allModels = await modelService.getAvailableModels();
 
-    return reply.status(200).send({
-      success: true,
-      data: {
+    const formattedResponse = formatSuccessResponse(
+      {
         recommended: recommendedModels,
         all: allModels.map((m) => ({
           name: m.name.trim(),
@@ -326,15 +344,19 @@ export async function getAvailableModelsHandler(
           status: m.status,
         })),
       },
-    });
+      200,
+      'Available models retrieved successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Get available models error:', error);
-    return reply.status(500).send({
-      error: {
-        message: error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 

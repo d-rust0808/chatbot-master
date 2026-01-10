@@ -14,6 +14,7 @@ import { proxyBalanceService } from '../../services/ai/proxy-balance.service';
 import { logger } from '../../infrastructure/logger';
 import { requireTenant } from '../../middleware/tenant';
 import { prisma } from '../../infrastructure/database';
+import { formatSuccessResponse, formatErrorResponse } from '../../utils/response-format';
 
 // Validation schemas
 const generateResponseSchema = z.object({
@@ -49,12 +50,13 @@ export async function generateResponseHandler(
     });
 
     if (!conversation) {
-      return reply.status(404).send({
-        error: {
-          message: 'Conversation not found',
-          statusCode: 404,
-        },
-      });
+      return reply.status(404).send(
+        formatErrorResponse(
+          'NOT_FOUND_ERROR',
+          'Conversation not found',
+          404
+        )
+      );
     }
 
     // Get IP and user agent for logging
@@ -75,31 +77,35 @@ export async function generateResponseHandler(
       }
     );
 
-    return reply.status(200).send({
-      success: true,
-      data: {
+    const formattedResponse = formatSuccessResponse(
+      {
         response,
         conversationId: validatedData.conversationId,
       },
-    });
+      200,
+      'AI response generated successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Validation error',
-          statusCode: 400,
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Validation error',
+          400,
+          error.errors
+        )
+      );
     }
 
     logger.error('Generate response error:', error);
-    return reply.status(500).send({
-      error: {
-        message: error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -115,21 +121,24 @@ export async function checkBalanceHandler(
     const balance = await proxyBalanceService.checkBalance();
 
     // Return format matching v98store API response
-    return reply.status(200).send({
-      success: true,
-      data: {
+    const formattedResponse = formatSuccessResponse(
+      {
         remain_quota: balance.remaining,
         used_quota: balance.used,
       },
-    });
+      200,
+      'Proxy balance retrieved successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Check balance error:', error);
-    return reply.status(500).send({
-      error: {
-        message: error instanceof Error ? error.message : 'Failed to check balance',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Failed to check balance',
+        500
+      )
+    );
   }
 }
 
@@ -143,20 +152,23 @@ export async function getLogsHandler(
   try {
     const logs = await proxyBalanceService.getLogs();
 
-    return reply.status(200).send({
-      success: true,
-      data: {
+    const formattedResponse = formatSuccessResponse(
+      {
         html: logs,
       },
-    });
+      200,
+      'API logs retrieved successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Get logs error:', error);
-    return reply.status(500).send({
-      error: {
-        message: error instanceof Error ? error.message : 'Failed to get logs',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Failed to get logs',
+        500
+      )
+    );
   }
 }
 

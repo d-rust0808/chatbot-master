@@ -11,6 +11,7 @@ import { FastifyRequest, FastifyReply } from 'fastify';
 import { modelService } from '../../services/ai/model.service';
 import { AIProviderFactory } from '../../services/ai/ai-provider.factory';
 import { logger } from '../../infrastructure/logger';
+import { formatSuccessResponse, formatErrorResponse } from '../../utils/response-format';
 
 interface TestResult {
   model: string;
@@ -105,18 +106,21 @@ export async function testSingleModelHandler(
 
     const result = await testModel(modelName);
 
-    return reply.status(200).send({
-      success: true,
-      data: result,
-    });
+    const formattedResponse = formatSuccessResponse(
+      result,
+      200,
+      'Model test completed successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Test model error:', error);
-    return reply.status(500).send({
-      error: {
-        message: error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -150,9 +154,8 @@ export async function testAllModelsHandler(
     const failed = results.filter((r) => r.available && !r.testResponse?.success);
     const notAvailable = results.filter((r) => !r.available);
 
-    return reply.status(200).send({
-      success: true,
-      data: {
+    const formattedResponse = formatSuccessResponse(
+      {
         results,
         summary: {
           total: results.length,
@@ -170,15 +173,19 @@ export async function testAllModelsHandler(
         })),
         notAvailable: notAvailable.map((r) => r.model),
       },
-    });
+      200,
+      'All models test completed successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Test all models error:', error);
-    return reply.status(500).send({
-      error: {
-        message: error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 

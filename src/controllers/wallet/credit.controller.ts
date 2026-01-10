@@ -19,6 +19,7 @@ import {
 import { logger } from '../../infrastructure/logger';
 import type { AuthenticatedRequest } from '../../types/auth';
 import { InsufficientCreditsError } from '../../errors/wallet/credit.errors';
+import { formatSuccessResponse, formatErrorResponse } from '../../utils/response-format';
 
 // Validation schemas
 const getTransactionHistoryQuerySchema = z.object({
@@ -46,12 +47,13 @@ export async function getAllBalancesHandler(
     const tenantId = authRequest.user?.tenantId;
 
     if (!tenantId) {
-      return reply.status(401).send({
-        error: {
-          message: 'Unauthorized',
-          statusCode: 401,
-        },
-      });
+      return reply.status(401).send(
+        formatErrorResponse(
+          'AUTH_ERROR',
+          'Unauthorized',
+          401
+        )
+      );
     }
 
     const [vndBalance, creditBalance] = await Promise.all([
@@ -59,24 +61,27 @@ export async function getAllBalancesHandler(
       creditService.getBalance(tenantId),
     ]);
 
-    return reply.status(200).send({
-      success: true,
-      data: {
+    const formattedResponse = formatSuccessResponse(
+      {
         balances: {
           vnd: vndBalance,
           credit: creditBalance,
         },
         tenantId,
       },
-    });
+      200,
+      'Balances retrieved successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Get all balances error:', error);
-    return reply.status(500).send({
-      error: {
-        message: 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -93,32 +98,36 @@ export async function getBalanceHandler(
     const tenantId = authRequest.user?.tenantId;
 
     if (!tenantId) {
-      return reply.status(401).send({
-        error: {
-          message: 'Unauthorized',
-          statusCode: 401,
-        },
-      });
+      return reply.status(401).send(
+        formatErrorResponse(
+          'AUTH_ERROR',
+          'Unauthorized',
+          401
+        )
+      );
     }
 
     const balance = await creditService.getBalance(tenantId);
 
-    return reply.status(200).send({
-      success: true,
-      data: {
+    const formattedResponse = formatSuccessResponse(
+      {
         balance,
         currency: 'CREDIT',
         tenantId,
       },
-    });
+      200,
+      'Credit balance retrieved successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Get balance error:', error);
-    return reply.status(500).send({
-      error: {
-        message: 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -137,12 +146,13 @@ export async function getTransactionHistoryHandler(
     const tenantId = authRequest.user?.tenantId;
 
     if (!tenantId) {
-      return reply.status(401).send({
-        error: {
-          message: 'Unauthorized',
-          statusCode: 401,
-        },
-      });
+      return reply.status(401).send(
+        formatErrorResponse(
+          'AUTH_ERROR',
+          'Unauthorized',
+          401
+        )
+      );
     }
 
     const query = getTransactionHistoryQuerySchema.parse(request.query);
@@ -153,34 +163,38 @@ export async function getTransactionHistoryHandler(
       endDate: query.endDate,
     });
 
-    return reply.status(200).send({
-      success: true,
-      data: result.transactions,
-      meta: {
+    const formattedResponse = formatSuccessResponse(
+      result.transactions,
+      200,
+      'Transaction history retrieved successfully',
+      {
         page: result.page,
         limit: result.limit,
         total: result.total,
         totalPages: result.totalPages,
-      },
-    });
+      }
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Validation error',
-          statusCode: 400,
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Validation error',
+          400,
+          error.errors
+        )
+      );
     }
 
     logger.error('Get transaction history error:', error);
-    return reply.status(500).send({
-      error: {
-        message: 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -197,32 +211,36 @@ export async function getVNDBalanceHandler(
     const tenantId = authRequest.user?.tenantId;
 
     if (!tenantId) {
-      return reply.status(401).send({
-        error: {
-          message: 'Unauthorized',
-          statusCode: 401,
-        },
-      });
+      return reply.status(401).send(
+        formatErrorResponse(
+          'AUTH_ERROR',
+          'Unauthorized',
+          401
+        )
+      );
     }
 
     const balance = await vndWalletService.getBalance(tenantId);
 
-    return reply.status(200).send({
-      success: true,
-      data: {
+    const formattedResponse = formatSuccessResponse(
+      {
         balance,
         currency: 'VND',
         tenantId,
       },
-    });
+      200,
+      'VND balance retrieved successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Get VND balance error:', error);
-    return reply.status(500).send({
-      error: {
-        message: 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -241,51 +259,55 @@ export async function purchaseCreditsHandler(
     const tenantId = authRequest.user?.tenantId;
 
     if (!tenantId) {
-      return reply.status(401).send({
-        error: {
-          message: 'Unauthorized',
-          statusCode: 401,
-        },
-      });
+      return reply.status(401).send(
+        formatErrorResponse(
+          'AUTH_ERROR',
+          'Unauthorized',
+          401
+        )
+      );
     }
 
     const { vndAmount } = purchaseCreditsSchema.parse(request.body);
 
     const result = await purchaseCredits(tenantId, vndAmount);
 
-    return reply.status(200).send({
-      success: true,
-      message: `Đã mua ${result.creditAmount.toLocaleString('vi-VN')} credits`,
-      data: result,
-    });
+    const formattedResponse = formatSuccessResponse(
+      result,
+      200,
+      `Đã mua ${result.creditAmount.toLocaleString('vi-VN')} credits`
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Validation error',
-          statusCode: 400,
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Validation error',
+          400,
+          error.errors
+        )
+      );
     }
 
     if (error instanceof InsufficientCreditsError) {
-      return reply.status(400).send({
-        error: {
-          message: error.message,
-          statusCode: 400,
-          code: 'INSUFFICIENT_VND_BALANCE',
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'INSUFFICIENT_VND_BALANCE',
+          error.message,
+          400
+        )
+      );
     }
 
     logger.error('Purchase credits error:', error);
-    return reply.status(500).send({
-      error: {
-        message: 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -300,18 +322,21 @@ export async function getCreditPackagesHandler(
   try {
     const packages = await getCreditPackages();
 
-    return reply.status(200).send({
-      success: true,
-      data: packages,
-    });
+    const formattedResponse = formatSuccessResponse(
+      packages,
+      200,
+      'Credit packages retrieved successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Get credit packages error:', error);
-    return reply.status(500).send({
-      error: {
-        message: 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -330,41 +355,44 @@ export async function purchaseCreditPackageHandler(
     const tenantId = authRequest.user?.tenantId;
 
     if (!tenantId) {
-      return reply.status(401).send({
-        error: {
-          message: 'Unauthorized',
-          statusCode: 401,
-        },
-      });
+      return reply.status(401).send(
+        formatErrorResponse(
+          'AUTH_ERROR',
+          'Unauthorized',
+          401
+        )
+      );
     }
 
     const { packageId } = request.params;
 
     const result = await purchaseCreditPackage(tenantId, packageId);
 
-    return reply.status(200).send({
-      success: true,
-      message: `Đã mua gói ${result.packageName}: ${result.totalCredits.toLocaleString('vi-VN')} credits`,
-      data: result,
-    });
+    const formattedResponse = formatSuccessResponse(
+      result,
+      200,
+      `Đã mua gói ${result.packageName}: ${result.totalCredits.toLocaleString('vi-VN')} credits`
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     if (error instanceof InsufficientCreditsError) {
-      return reply.status(400).send({
-        error: {
-          message: error.message,
-          statusCode: 400,
-          code: 'INSUFFICIENT_VND_BALANCE',
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'INSUFFICIENT_VND_BALANCE',
+          error.message,
+          400
+        )
+      );
     }
 
     logger.error('Purchase credit package error:', error);
-    return reply.status(400).send({
-      error: {
-        message: error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 400,
-      },
-    });
+    return reply.status(400).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        400
+      )
+    );
   }
 }
 
@@ -383,12 +411,13 @@ export async function getVNDTransactionHistoryHandler(
     const tenantId = authRequest.user?.tenantId;
 
     if (!tenantId) {
-      return reply.status(401).send({
-        error: {
-          message: 'Unauthorized',
-          statusCode: 401,
-        },
-      });
+      return reply.status(401).send(
+        formatErrorResponse(
+          'AUTH_ERROR',
+          'Unauthorized',
+          401
+        )
+      );
     }
 
     const query = getTransactionHistoryQuerySchema.parse(request.query);
@@ -399,34 +428,38 @@ export async function getVNDTransactionHistoryHandler(
       endDate: query.endDate,
     });
 
-    return reply.status(200).send({
-      success: true,
-      data: result.transactions,
-      meta: {
+    const formattedResponse = formatSuccessResponse(
+      result.transactions,
+      200,
+      'VND transaction history retrieved successfully',
+      {
         page: result.page,
         limit: result.limit,
         total: result.total,
         totalPages: result.totalPages,
-      },
-    });
+      }
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Validation error',
-          statusCode: 400,
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Validation error',
+          400,
+          error.errors
+        )
+      );
     }
 
     logger.error('Get VND transaction history error:', error);
-    return reply.status(500).send({
-      error: {
-        message: 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        'Internal server error',
+        500
+      )
+    );
   }
 }
 

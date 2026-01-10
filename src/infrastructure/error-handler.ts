@@ -10,17 +10,7 @@
 import { FastifyError, FastifyReply, FastifyRequest } from 'fastify';
 import { logger } from './logger';
 import { config } from './config';
-
-interface ErrorResponse {
-  error: {
-    message: string;
-    code?: string;
-    statusCode: number;
-    details?: unknown;
-  };
-  timestamp: string;
-  requestId?: string;
-}
+import { formatErrorResponse } from '../utils/response-format';
 
 export const errorHandler = (
   error: FastifyError,
@@ -48,20 +38,20 @@ export const errorHandler = (
     });
   }
   
-  // Build error response
-  const errorResponse: ErrorResponse = {
-    error: {
-      message: error.message || 'Internal server error',
-      statusCode,
-      // Chỉ expose code và details trong development
-      ...(config.isDevelopment && {
-        code: error.code,
-        details: error.validation || error.cause,
-      }),
-    },
-    timestamp: new Date().toISOString(),
-    requestId,
-  };
+  // Build error response using standardized format
+  const errorCode = error.code || 'INTERNAL_ERROR';
+  const errorMessage = error.message || 'Internal server error';
+  const errorDetails = config.isDevelopment 
+    ? (error.validation || error.cause)
+    : undefined;
+  
+  const errorResponse = formatErrorResponse(
+    errorCode,
+    errorMessage,
+    statusCode,
+    errorDetails,
+    requestId
+  );
   
   // Send response
   reply.status(statusCode).send(errorResponse);

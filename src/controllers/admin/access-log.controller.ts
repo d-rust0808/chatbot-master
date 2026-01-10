@@ -15,6 +15,7 @@ import { suspiciousDetectionService } from '../../services/access-log/suspicious
 import { ipManagementService } from '../../services/ip-management/ip-management.service';
 import { logger } from '../../infrastructure/logger';
 import type { AuthenticatedRequest } from '../../types/auth';
+import { formatSuccessResponse, formatErrorResponse } from '../../utils/response-format';
 
 /**
  * Get access logs query schema
@@ -65,29 +66,36 @@ export async function listAccessLogsHandler(
       limit: query.limit,
     });
 
-    return reply.status(200).send({
-      data: result.data,
-      meta: result.meta,
-    });
+    const formattedResponse = formatSuccessResponse(
+      result.data,
+      200,
+      'Access logs retrieved successfully',
+      result.meta
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Failed to list access logs', {
       error: error instanceof Error ? error.message : String(error),
     });
 
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Invalid query parameters',
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Invalid query parameters',
+          400,
+          error.errors
+        )
+      );
     }
 
-    return reply.status(500).send({
-      error: {
-        message: 'Failed to list access logs',
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        'Failed to list access logs',
+        500
+      )
+    );
   }
 }
 
@@ -108,9 +116,12 @@ export async function getSuspiciousIPsHandler(
       endDate: query.endDate ? new Date(query.endDate) : undefined,
     });
 
-    return reply.status(200).send({
-      data: result,
-    });
+    const formattedResponse = formatSuccessResponse(
+      result,
+      200,
+      'Suspicious IPs retrieved successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Failed to get suspicious IPs', {
       error: error instanceof Error ? error.message : String(error),
@@ -119,20 +130,24 @@ export async function getSuspiciousIPsHandler(
     });
 
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Invalid query parameters',
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Invalid query parameters',
+          400,
+          error.errors
+        )
+      );
     }
 
-    return reply.status(500).send({
-      error: {
-        message: 'Failed to get suspicious IPs',
-        details: error instanceof Error ? error.message : String(error),
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        'Failed to get suspicious IPs',
+        500,
+        error instanceof Error ? error.message : String(error)
+      )
+    );
   }
 }
 
@@ -160,14 +175,17 @@ export async function getIPDetailsHandler(
     const isBlacklisted = await ipManagementService.isIPBlacklisted(ipAddress);
     const isWhitelisted = await ipManagementService.isIPWhitelisted(ipAddress);
 
-    return reply.status(200).send({
-      data: {
+    const formattedResponse = formatSuccessResponse(
+      {
         ipAddress,
         ...stats,
         isBlacklisted,
         isWhitelisted,
       },
-    });
+      200,
+      'IP details retrieved successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Failed to get IP details', {
       error: error instanceof Error ? error.message : String(error),
@@ -175,19 +193,23 @@ export async function getIPDetailsHandler(
     });
 
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Invalid query parameters',
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Invalid query parameters',
+          400,
+          error.errors
+        )
+      );
     }
 
-    return reply.status(500).send({
-      error: {
-        message: 'Failed to get IP details',
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        'Failed to get IP details',
+        500
+      )
+    );
   }
 }
 
@@ -227,10 +249,12 @@ export async function banIPFromSuspiciousHandler(
       expiresAt: body.expiresAt ? new Date(body.expiresAt) : undefined,
     });
 
-    return reply.status(201).send({
-      data: result,
-      message: 'IP banned successfully',
-    });
+    const formattedResponse = formatSuccessResponse(
+      result,
+      201,
+      'IP banned successfully'
+    );
+    return reply.status(201).send(formattedResponse);
   } catch (error) {
     logger.error('Failed to ban IP from suspicious list', {
       error: error instanceof Error ? error.message : String(error),
@@ -238,19 +262,23 @@ export async function banIPFromSuspiciousHandler(
     });
 
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Invalid request body',
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Invalid request body',
+          400,
+          error.errors
+        )
+      );
     }
 
-    return reply.status(500).send({
-      error: {
-        message: 'Failed to ban IP',
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        'Failed to ban IP',
+        500
+      )
+    );
   }
 }
 

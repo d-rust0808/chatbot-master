@@ -16,6 +16,7 @@ import bcrypt from 'bcrypt';
 import { creditService } from '../../services/wallet/credit.service';
 import { vndWalletService } from '../../services/wallet/vnd-wallet.service';
 import type { AuthenticatedRequest } from '../../types/auth';
+import { formatSuccessResponse, formatErrorResponse } from '../../utils/response-format';
 
 // Validation schemas
 const listUsersSchema = z.object({
@@ -112,9 +113,8 @@ export async function getSystemStatsHandler(
       }),
     ]);
 
-    return reply.status(200).send({
-      success: true,
-      data: {
+    const formattedResponse = formatSuccessResponse(
+      {
         users: {
           total: totalUsers,
         },
@@ -134,15 +134,19 @@ export async function getSystemStatsHandler(
           active: activePlatformConnections,
         },
       },
-    });
+      200,
+      'System statistics retrieved successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Get system stats error:', error);
-    return reply.status(500).send({
-      error: {
-        message: error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -241,34 +245,38 @@ export async function listUsersHandler(
       })
     );
 
-    return reply.status(200).send({
-      success: true,
-      data: usersWithBalance,
-      meta: {
+    const formattedResponse = formatSuccessResponse(
+      usersWithBalance,
+      200,
+      'Users retrieved successfully',
+      {
         page,
         limit,
         total,
         totalPages: Math.ceil(total / limit),
-      },
-    });
+      }
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Validation error',
-          statusCode: 400,
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Validation error',
+          400,
+          error.errors
+        )
+      );
     }
 
     logger.error('List users error:', error);
-    return reply.status(500).send({
-      error: {
-        message: error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -320,34 +328,38 @@ export async function listTenantsHandler(
       prisma.tenant.count({ where }),
     ]);
 
-    return reply.status(200).send({
-      success: true,
-      data: tenants,
-      meta: {
+    const formattedResponse = formatSuccessResponse(
+      tenants,
+      200,
+      'Tenants retrieved successfully',
+      {
         page,
         limit,
         total,
         totalPages: Math.ceil(total / limit),
-      },
-    });
+      }
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Validation error',
-          statusCode: 400,
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Validation error',
+          400,
+          error.errors
+        )
+      );
     }
 
     logger.error('List tenants error:', error);
-    return reply.status(500).send({
-      error: {
-        message: error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -369,21 +381,23 @@ export async function createCustomerHandler(
     ]);
 
     if (existingTenant) {
-      return reply.status(409).send({
-        error: {
-          message: 'Tenant slug already exists',
-          statusCode: 409,
-        },
-      });
+      return reply.status(409).send(
+        formatErrorResponse(
+          'CONFLICT_ERROR',
+          'Tenant slug already exists',
+          409
+        )
+      );
     }
 
     if (existingUser) {
-      return reply.status(409).send({
-        error: {
-          message: 'Admin email already exists',
-          statusCode: 409,
-        },
-      });
+      return reply.status(409).send(
+        formatErrorResponse(
+          'CONFLICT_ERROR',
+          'Admin email already exists',
+          409
+        )
+      );
     }
 
     const hashedPassword = await bcrypt.hash(adminUser.password, 10);
@@ -416,10 +430,8 @@ export async function createCustomerHandler(
       return { tenant: createdTenant, adminUser: user };
     });
 
-    return reply.status(201).send({
-      success: true,
-      message: 'Tạo khách hàng mới thành công',
-      data: {
+    const formattedResponse = formatSuccessResponse(
+      {
         tenant: {
           id: result.tenant.id,
           name: result.tenant.name,
@@ -433,26 +445,30 @@ export async function createCustomerHandler(
           role: 'admin',
         },
       },
-    });
+      201,
+      'Tạo khách hàng mới thành công'
+    );
+    return reply.status(201).send(formattedResponse);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Validation error',
-          statusCode: 400,
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Validation error',
+          400,
+          error.errors
+        )
+      );
     }
 
     logger.error('Create customer error:', error);
-    return reply.status(500).send({
-      error: {
-        message:
-          error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -529,21 +545,23 @@ export async function createTenantAdminHandler(
     ]);
 
     if (!tenant) {
-      return reply.status(404).send({
-        error: {
-          message: 'Tenant not found',
-          statusCode: 404,
-        },
-      });
+      return reply.status(404).send(
+        formatErrorResponse(
+          'NOT_FOUND_ERROR',
+          'Tenant not found',
+          404
+        )
+      );
     }
 
     if (existingUser) {
-      return reply.status(409).send({
-        error: {
-          message: 'Admin email already exists',
-          statusCode: 409,
-        },
-      });
+      return reply.status(409).send(
+        formatErrorResponse(
+          'CONFLICT_ERROR',
+          'Admin email already exists',
+          409
+        )
+      );
     }
 
     const hashedPassword = await bcrypt.hash(body.password, 10);
@@ -564,9 +582,8 @@ export async function createTenantAdminHandler(
       },
     });
 
-    return reply.status(201).send({
-      success: true,
-      data: {
+    const formattedResponse = formatSuccessResponse(
+      {
         user: {
           id: user.id,
           email: user.email,
@@ -576,26 +593,30 @@ export async function createTenantAdminHandler(
         tenantId: body.tenantId,
         tenantRole: body.role,
       },
-    });
+      201,
+      'Tenant admin created successfully'
+    );
+    return reply.status(201).send(formattedResponse);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Validation error',
-          statusCode: 400,
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Validation error',
+          400,
+          error.errors
+        )
+      );
     }
 
     logger.error('Create tenant admin error:', error);
-    return reply.status(500).send({
-      error: {
-        message:
-          error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -619,12 +640,13 @@ export async function updateTenantAdminHandler(
     });
 
     if (!tenantUser) {
-      return reply.status(404).send({
-        error: {
-          message: 'Tenant admin not found',
-          statusCode: 404,
-        },
-      });
+      return reply.status(404).send(
+        formatErrorResponse(
+          'NOT_FOUND_ERROR',
+          'Tenant admin not found',
+          404
+        )
+      );
     }
 
     if (body.name) {
@@ -641,29 +663,32 @@ export async function updateTenantAdminHandler(
       });
     }
 
-    return reply.status(200).send({
-      success: true,
-      message: 'Tenant admin updated',
-    });
+    const formattedResponse = formatSuccessResponse(
+      null,
+      200,
+      'Tenant admin updated successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Validation error',
-          statusCode: 400,
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Validation error',
+          400,
+          error.errors
+        )
+      );
     }
 
     logger.error('Update tenant admin error:', error);
-    return reply.status(500).send({
-      error: {
-        message:
-          error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -699,16 +724,21 @@ export async function deleteTenantAdminHandler(
       });
     }
 
-    return reply.status(204).send();
+    const formattedResponse = formatSuccessResponse(
+      null,
+      204,
+      'Tenant admin deleted successfully'
+    );
+    return reply.status(204).send(formattedResponse);
   } catch (error) {
     logger.error('Delete tenant admin error:', error);
-    return reply.status(500).send({
-      error: {
-        message:
-          error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -775,35 +805,38 @@ export async function listPlanTemplatesHandler(
       (prisma as any).planTemplate.count({ where }),
     ]);
 
-    return reply.status(200).send({
-      success: true,
-      data: plans,
-      meta: {
+    const formattedResponse = formatSuccessResponse(
+      plans,
+      200,
+      'Plan templates retrieved successfully',
+      {
         page,
         limit,
         total,
         totalPages: Math.ceil(total / limit),
-      },
-    });
+      }
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Validation error',
-          statusCode: 400,
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Validation error',
+          400,
+          error.errors
+        )
+      );
     }
 
     logger.error('List plan templates error:', error);
-    return reply.status(500).send({
-      error: {
-        message:
-          error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -830,29 +863,32 @@ export async function createPlanTemplateHandler(
       },
     });
 
-    return reply.status(201).send({
-      success: true,
-      data: created,
-    });
+    const formattedResponse = formatSuccessResponse(
+      created,
+      201,
+      'Plan template created successfully'
+    );
+    return reply.status(201).send(formattedResponse);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Validation error',
-          statusCode: 400,
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Validation error',
+          400,
+          error.errors
+        )
+      );
     }
 
     logger.error('Create plan template error:', error);
-    return reply.status(500).send({
-      error: {
-        message:
-          error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -875,12 +911,13 @@ export async function updatePlanTemplateHandler(
     });
 
     if (!existing) {
-      return reply.status(404).send({
-        error: {
-          message: 'Plan template not found',
-          statusCode: 404,
-        },
-      });
+      return reply.status(404).send(
+        formatErrorResponse(
+          'NOT_FOUND_ERROR',
+          'Plan template not found',
+          404
+        )
+      );
     }
 
     const updated = await (prisma as any).planTemplate.update({
@@ -888,29 +925,32 @@ export async function updatePlanTemplateHandler(
       data: body as any,
     });
 
-    return reply.status(200).send({
-      success: true,
-      data: updated,
-    });
+    const formattedResponse = formatSuccessResponse(
+      updated,
+      200,
+      'Plan template updated successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Validation error',
-          statusCode: 400,
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Validation error',
+          400,
+          error.errors
+        )
+      );
     }
 
     logger.error('Update plan template error:', error);
-    return reply.status(500).send({
-      error: {
-        message:
-          error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -931,12 +971,13 @@ export async function deletePlanTemplateHandler(
     });
 
     if (!existing) {
-      return reply.status(404).send({
-        error: {
-          message: 'Plan template not found',
-          statusCode: 404,
-        },
-      });
+      return reply.status(404).send(
+        formatErrorResponse(
+          'NOT_FOUND_ERROR',
+          'Plan template not found',
+          404
+        )
+      );
     }
 
     // WHY: để an toàn, chỉ deactivate thay vì xóa cứng (giữ lịch sử subscription)
@@ -945,19 +986,21 @@ export async function deletePlanTemplateHandler(
       data: { isActive: false },
     });
 
-    return reply.status(200).send({
-      success: true,
-      data: updated,
-    });
+    const formattedResponse = formatSuccessResponse(
+      updated,
+      200,
+      'Plan template deleted successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Delete plan template error:', error);
-    return reply.status(500).send({
-      error: {
-        message:
-          error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -991,19 +1034,21 @@ export async function listTenantSubscriptionsHandler(
       take: 200,
     });
 
-    return reply.status(200).send({
-      success: true,
-      data: subscriptions,
-    });
+    const formattedResponse = formatSuccessResponse(
+      subscriptions,
+      200,
+      'Tenant subscriptions retrieved successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('List tenant subscriptions error:', error);
-    return reply.status(500).send({
-      error: {
-        message:
-          error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -1053,26 +1098,30 @@ export async function getTenantHandler(
     });
 
     if (!tenant) {
-      return reply.status(404).send({
-        error: {
-          message: 'Tenant not found',
-          statusCode: 404,
-        },
-      });
+      return reply.status(404).send(
+        formatErrorResponse(
+          'NOT_FOUND_ERROR',
+          'Tenant not found',
+          404
+        )
+      );
     }
 
-    return reply.status(200).send({
-      success: true,
-      data: tenant,
-    });
+    const formattedResponse = formatSuccessResponse(
+      tenant,
+      200,
+      'Tenant retrieved successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Get tenant error:', error);
-    return reply.status(500).send({
-      error: {
-        message: error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -1097,12 +1146,13 @@ export async function createTenantHandler(
 
     // Validation
     if (!name) {
-      return reply.status(400).send({
-        error: {
-          message: 'Tenant name is required',
-          statusCode: 400,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Tenant name is required',
+          400
+        )
+      );
     }
 
     // Generate slug nếu không có
@@ -1119,12 +1169,13 @@ export async function createTenantHandler(
     });
 
     if (existingTenant) {
-      return reply.status(400).send({
-        error: {
-          message: 'Tenant with this slug already exists',
-          statusCode: 400,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'CONFLICT_ERROR',
+          'Tenant with this slug already exists',
+          400
+        )
+      );
     }
 
     // Create tenant
@@ -1192,9 +1243,8 @@ export async function createTenantHandler(
       hasAdmin: !!adminUser,
     });
 
-    return reply.status(201).send({
-      success: true,
-      data: {
+    const formattedResponse = formatSuccessResponse(
+      {
         tenant: {
           id: tenant.id,
           name: tenant.name,
@@ -1208,15 +1258,19 @@ export async function createTenantHandler(
             }
           : null,
       },
-    });
+      201,
+      'Tenant created successfully'
+    );
+    return reply.status(201).send(formattedResponse);
   } catch (error) {
     logger.error('Create tenant error:', error);
-    return reply.status(500).send({
-      error: {
-        message: error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -1246,12 +1300,13 @@ export async function updateTenantConfigHandler(
     });
 
     if (!existingTenant) {
-      return reply.status(404).send({
-        error: {
-          message: 'Tenant not found',
-          statusCode: 404,
-        },
-      });
+      return reply.status(404).send(
+        formatErrorResponse(
+          'NOT_FOUND_ERROR',
+          'Tenant not found',
+          404
+        )
+      );
     }
 
     // Check slug uniqueness nếu đổi slug
@@ -1261,12 +1316,13 @@ export async function updateTenantConfigHandler(
       });
 
       if (slugExists) {
-        return reply.status(400).send({
-          error: {
-            message: 'Tenant slug already exists',
-            statusCode: 400,
-          },
-        });
+        return reply.status(400).send(
+          formatErrorResponse(
+            'CONFLICT_ERROR',
+            'Tenant slug already exists',
+            400
+          )
+        );
       }
     }
 
@@ -1286,24 +1342,27 @@ export async function updateTenantConfigHandler(
       changes: Object.keys(updateData),
     });
 
-    return reply.status(200).send({
-      success: true,
-      data: {
+    const formattedResponse = formatSuccessResponse(
+      {
         tenant: {
           id: updatedTenant.id,
           name: updatedTenant.name,
           slug: updatedTenant.slug,
         },
       },
-    });
+      200,
+      'Tenant config updated successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Update tenant config error:', error);
-    return reply.status(500).send({
-      error: {
-        message: error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -1349,12 +1408,13 @@ export async function configTenantChatbotSettingsHandler(
     });
 
     if (!tenant) {
-      return reply.status(404).send({
-        error: {
-          message: 'Tenant not found',
-          statusCode: 404,
-        },
-      });
+      return reply.status(404).send(
+        formatErrorResponse(
+          'NOT_FOUND_ERROR',
+          'Tenant not found',
+          404
+        )
+      );
     }
 
     // Lưu config vào tenant metadata
@@ -1393,22 +1453,24 @@ export async function configTenantChatbotSettingsHandler(
       settings: updatedMetadata.chatbotSettings,
     });
 
-    return reply.status(200).send({
-      success: true,
-      data: {
+    const formattedResponse = formatSuccessResponse(
+      {
         tenantId,
         settings: updatedMetadata.chatbotSettings,
-        message: 'Chatbot settings configured successfully',
       },
-    });
+      200,
+      'Chatbot settings configured successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Config tenant chatbot settings error:', error);
-    return reply.status(500).send({
-      error: {
-        message: error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -1430,22 +1492,24 @@ export async function topUpUserBalanceHandler(
     const body = topUpUserBalanceSchema.parse(request.body);
     
     if (!adminId) {
-      return reply.status(401).send({
-        error: {
-          message: 'Unauthorized',
-          statusCode: 401,
-        },
-      });
+      return reply.status(401).send(
+        formatErrorResponse(
+          'AUTH_ERROR',
+          'Unauthorized',
+          401
+        )
+      );
     }
 
     // Validate: phải có ít nhất một loại tiền để nạp
     if (!body.vndAmount && !body.creditAmount) {
-      return reply.status(400).send({
-        error: {
-          message: 'Must provide either vndAmount or creditAmount',
-          statusCode: 400,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Must provide either vndAmount or creditAmount',
+          400
+        )
+      );
     }
 
     // Get user và tenant đầu tiên
@@ -1467,21 +1531,23 @@ export async function topUpUserBalanceHandler(
     });
 
     if (!user) {
-      return reply.status(404).send({
-        error: {
-          message: 'User not found',
-          statusCode: 404,
-        },
-      });
+      return reply.status(404).send(
+        formatErrorResponse(
+          'NOT_FOUND_ERROR',
+          'User not found',
+          404
+        )
+      );
     }
 
     if (user.tenants.length === 0) {
-      return reply.status(400).send({
-        error: {
-          message: 'User has no tenant. Cannot top-up balance.',
-          statusCode: 400,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'User has no tenant. Cannot top-up balance.',
+          400
+        )
+      );
     }
 
     const tenant = user.tenants[0].tenant;
@@ -1529,10 +1595,8 @@ export async function topUpUserBalanceHandler(
       newCredit,
     });
 
-    return reply.status(200).send({
-      success: true,
-      message: 'Balance topped up successfully',
-      data: {
+    const formattedResponse = formatSuccessResponse(
+      {
         userId,
         tenantId: tenant.id,
         tenantName: tenant.name,
@@ -1541,25 +1605,30 @@ export async function topUpUserBalanceHandler(
         newBalance,
         newCredit,
       },
-    });
+      200,
+      'Balance topped up successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Validation error',
-          statusCode: 400,
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Validation error',
+          400,
+          error.errors
+        )
+      );
     }
 
     logger.error('Top-up user balance error:', error);
-    return reply.status(500).send({
-      error: {
-        message: error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -1591,12 +1660,13 @@ export async function getAdminBalanceLogsHandler(
     });
 
     if (!admin) {
-      return reply.status(404).send({
-        error: {
-          message: 'Admin not found',
-          statusCode: 404,
-        },
-      });
+      return reply.status(404).send(
+        formatErrorResponse(
+          'NOT_FOUND_ERROR',
+          'Admin not found',
+          404
+        )
+      );
     }
 
     const page = validated.page || 1;
@@ -1803,10 +1873,11 @@ export async function getAdminBalanceLogsHandler(
       type: validated.type,
     });
 
-    return reply.status(200).send({
-      success: true,
-      data: enrichedTransactions,
-      meta: {
+    const formattedResponse = formatSuccessResponse(
+      enrichedTransactions,
+      200,
+      'Admin balance logs retrieved successfully',
+      {
         page,
         limit,
         total: totalTransactions,
@@ -1816,26 +1887,29 @@ export async function getAdminBalanceLogsHandler(
           email: admin.email,
           name: admin.name,
         },
-      },
-    });
+      }
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Validation error',
-          statusCode: 400,
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Validation error',
+          400,
+          error.errors
+        )
+      );
     }
 
     logger.error('Get admin balance logs error:', error);
-    return reply.status(500).send({
-      error: {
-        message: error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -2119,10 +2193,11 @@ export async function getAllAdminBalanceLogsHandler(
       adminIdFilter: validated.adminId || 'all',
     });
 
-    return reply.status(200).send({
-      success: true,
-      data: enrichedTransactions,
-      meta: {
+    const formattedResponse = formatSuccessResponse(
+      enrichedTransactions,
+      200,
+      'All admin balance logs retrieved successfully',
+      {
         page,
         limit,
         total: totalTransactions,
@@ -2131,26 +2206,29 @@ export async function getAllAdminBalanceLogsHandler(
           adminId: validated.adminId || null,
           type: validated.type,
         },
-      },
-    });
+      }
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Validation error',
-          statusCode: 400,
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Validation error',
+          400,
+          error.errors
+        )
+      );
     }
 
     logger.error('Get all admin balance logs error:', error);
-    return reply.status(500).send({
-      error: {
-        message: error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -2175,21 +2253,23 @@ export async function createAdminHandler(
 
     // Validation
     if (!email || !password) {
-      return reply.status(400).send({
-        error: {
-          message: 'Email and password are required',
-          statusCode: 400,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Email and password are required',
+          400
+        )
+      );
     }
 
     if (password.length < 8) {
-      return reply.status(400).send({
-        error: {
-          message: 'Password must be at least 8 characters',
-          statusCode: 400,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Password must be at least 8 characters',
+          400
+        )
+      );
     }
 
     // Check if user already exists
@@ -2198,12 +2278,13 @@ export async function createAdminHandler(
     });
 
     if (existingUser) {
-      return reply.status(400).send({
-        error: {
-          message: 'User already exists',
-          statusCode: 400,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'CONFLICT_ERROR',
+          'User already exists',
+          400
+        )
+      );
     }
 
     // Import bcrypt
@@ -2247,9 +2328,8 @@ export async function createAdminHandler(
       tenantId: tenant?.id,
     });
 
-    return reply.status(201).send({
-      success: true,
-      data: {
+    const formattedResponse = formatSuccessResponse(
+      {
         user: {
           id: user.id,
           email: user.email,
@@ -2262,17 +2342,20 @@ export async function createAdminHandler(
               slug: tenant.slug,
             }
           : null,
-        message: 'Admin user created successfully',
       },
-    });
+      201,
+      'Admin user created successfully'
+    );
+    return reply.status(201).send(formattedResponse);
   } catch (error) {
     logger.error('Create admin error:', error);
-    return reply.status(500).send({
-      error: {
-        message: error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        500
+      )
+    );
   }
 }
 

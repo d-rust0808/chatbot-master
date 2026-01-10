@@ -18,6 +18,7 @@ import {
 } from '../../services/service-package/admin.service';
 import { logger } from '../../infrastructure/logger';
 import type { AuthenticatedRequest } from '../../types/auth';
+import { formatSuccessResponse, formatErrorResponse } from '../../utils/response-format';
 
 // Type for multipart part
 interface MultipartPart {
@@ -49,12 +50,13 @@ export async function createServicePackageHandler(
     
     // Check admin role
     if (authRequest.user?.role !== 'sp-admin') {
-      return reply.status(403).send({
-        error: {
-          message: 'Forbidden: Super admin only',
-          statusCode: 403,
-        },
-      });
+      return reply.status(403).send(
+        formatErrorResponse(
+          'FORBIDDEN_ERROR',
+          'Forbidden: Super admin only',
+          403
+        )
+      );
     }
 
     // Log request for debugging
@@ -75,12 +77,13 @@ export async function createServicePackageHandler(
         logger.warn('Request is not multipart', {
           contentType: request.headers['content-type'],
         });
-        return reply.status(400).send({
-          error: {
-            message: 'Content-Type must be multipart/form-data',
-            statusCode: 400,
-          },
-        });
+        return reply.status(400).send(
+          formatErrorResponse(
+            'VALIDATION_ERROR',
+            'Content-Type must be multipart/form-data',
+            400
+          )
+        );
       }
 
       logger.info('Starting multipart parsing', {
@@ -179,15 +182,14 @@ export async function createServicePackageHandler(
         stack: multipartError instanceof Error ? multipartError.stack : undefined,
         contentType: request.headers['content-type'],
       });
-      return reply.status(400).send({
-        error: {
-          message: 'Failed to parse multipart form data',
-          statusCode: 400,
-          details: multipartError instanceof Error ? multipartError.message : String(multipartError),
-        },
-        api_version: 'v1',
-        provider: 'cdudu',
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Failed to parse multipart form data',
+          400,
+          multipartError instanceof Error ? multipartError.message : String(multipartError)
+        )
+      );
     }
 
     logger.info('Parsed form data successfully', {
@@ -225,17 +227,18 @@ export async function createServicePackageHandler(
         pricePerMonth,
         formData,
       });
-      return reply.status(400).send({
-        error: {
-          message: 'Missing required fields: name, service, pricePerMonth',
-          statusCode: 400,
-          details: {
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Missing required fields: name, service, pricePerMonth',
+          400,
+          {
             name: name || 'missing',
             service: service || 'missing',
             pricePerMonth: pricePerMonth || 'missing or invalid',
-          },
-        },
-      });
+          }
+        )
+      );
     }
 
     // Handle image upload
@@ -289,18 +292,18 @@ export async function createServicePackageHandler(
       name: package_.name,
     });
 
-    const response = {
-      success: true,
-      message: 'Service package created successfully',
-      data: package_,
-    };
+    const formattedResponse = formatSuccessResponse(
+      package_,
+      201,
+      'Service package created successfully'
+    );
 
     logger.info('Sending success response', {
       statusCode: 201,
       packageId: package_.id,
     });
 
-    return reply.status(201).send(response);
+    return reply.status(201).send(formattedResponse);
   } catch (error) {
     logger.error('Create service package error:', {
       error: error instanceof Error ? error.message : String(error),
@@ -314,18 +317,15 @@ export async function createServicePackageHandler(
       method: request.method,
     });
 
-    const errorResponse = {
-      error: {
-        message: error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 500,
-        api_version: 'v1',
-        provider: 'cdudu',
-      },
-    };
+    const errorResponse = formatErrorResponse(
+      'INTERNAL_ERROR',
+      error instanceof Error ? error.message : 'Internal server error',
+      500
+    );
 
     logger.info('Sending error response', {
       statusCode: 500,
-      errorMessage: errorResponse.error.message,
+      errorMessage: errorResponse.message,
     });
 
     // Đảm bảo response luôn được gửi
@@ -403,19 +403,21 @@ export async function updateServicePackageHandler(
 
     const updated = await updateServicePackage(id, updateData);
 
-    return reply.status(200).send({
-      success: true,
-      message: 'Service package updated successfully',
-      data: updated,
-    });
+    const formattedResponse = formatSuccessResponse(
+      updated,
+      200,
+      'Service package updated successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Update service package error:', error);
-    return reply.status(400).send({
-      error: {
-        message: error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 400,
-      },
-    });
+    return reply.status(400).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        400
+      )
+    );
   }
 }
 
@@ -445,18 +447,21 @@ export async function deleteServicePackageHandler(
 
     await deleteServicePackage(id);
 
-    return reply.status(200).send({
-      success: true,
-      message: 'Service package deleted successfully',
-    });
+    const formattedResponse = formatSuccessResponse(
+      null,
+      200,
+      'Service package deleted successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Delete service package error:', error);
-    return reply.status(400).send({
-      error: {
-        message: error instanceof Error ? error.message : 'Internal server error',
-        statusCode: 400,
-      },
-    });
+    return reply.status(400).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        error instanceof Error ? error.message : 'Internal server error',
+        400
+      )
+    );
   }
 }
 
@@ -492,18 +497,21 @@ export async function getAllServicePackagesHandler(
 
     const packages = await getAllServicePackages(filters);
 
-    return reply.status(200).send({
-      success: true,
-      data: packages,
-    });
+    const formattedResponse = formatSuccessResponse(
+      packages,
+      200,
+      'Service packages retrieved successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Get all service packages error:', error);
-    return reply.status(500).send({
-      error: {
-        message: 'Internal server error',
-        statusCode: 500,
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        'Internal server error',
+        500
+      )
+    );
   }
 }
 
@@ -532,18 +540,21 @@ export async function getServicePackageByIdAdminHandler(
     const { id } = request.params;
     const servicePackage = await getServicePackageByIdAdmin(id);
 
-    return reply.status(200).send({
-      success: true,
-      data: servicePackage,
-    });
+    const formattedResponse = formatSuccessResponse(
+      servicePackage,
+      200,
+      'Service package retrieved successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Get service package by ID admin error:', error);
-    return reply.status(404).send({
-      error: {
-        message: error instanceof Error ? error.message : 'Service package not found',
-        statusCode: 404,
-      },
-    });
+    return reply.status(404).send(
+      formatErrorResponse(
+        'NOT_FOUND_ERROR',
+        error instanceof Error ? error.message : 'Service package not found',
+        404
+      )
+    );
   }
 }
 

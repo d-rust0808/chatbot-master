@@ -15,6 +15,7 @@ import { FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { analyticsService } from '../../services/analytics/analytics.service';
 import { logger } from '../../infrastructure/logger';
+import { formatAnalyticsResponse, formatSuccessResponse, formatErrorResponse } from '../../utils/response-format';
 
 /**
  * Get overview query schema
@@ -103,7 +104,15 @@ export async function getOverviewHandler(
       compareWithPrevious: query.compareWithPrevious,
     });
 
-    return reply.status(200).send(result);
+    // WHY: Đảm bảo format response nhất quán với status, message, api_version, provider
+    // Overview trả về object với nhiều metrics, không phải data array
+    const formattedResponse = formatSuccessResponse(
+      result,
+      200,
+      'Overview metrics retrieved successfully'
+    );
+
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Failed to get overview', {
       error: error instanceof Error ? error.message : String(error),
@@ -112,19 +121,23 @@ export async function getOverviewHandler(
     });
 
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Invalid query parameters',
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Invalid query parameters',
+          400,
+          error.errors
+        )
+      );
     }
 
-    return reply.status(500).send({
-      error: {
-        message: 'Failed to get overview',
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        'Failed to get overview',
+        500
+      )
+    );
   }
 }
 
@@ -146,7 +159,16 @@ export async function getGrowthHandler(
       interval: query.interval,
     });
 
-    return reply.status(200).send(result);
+    // WHY: Đảm bảo format response nhất quán với status, message, data, summary, api_version, provider
+    // Service đã trả về { data, summary }, chỉ cần thêm metadata
+    const formattedResponse = formatAnalyticsResponse(
+      result.data,
+      result.summary,
+      200,
+      'Growth trends retrieved successfully'
+    );
+
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Failed to get growth', {
       error: error instanceof Error ? error.message : String(error),
@@ -155,19 +177,23 @@ export async function getGrowthHandler(
     });
 
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Invalid query parameters',
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Invalid query parameters',
+          400,
+          error.errors
+        )
+      );
     }
 
-    return reply.status(500).send({
-      error: {
-        message: 'Failed to get growth',
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        'Failed to get growth',
+        500
+      )
+    );
   }
 }
 
@@ -189,7 +215,14 @@ export async function getRevenueHandler(
       limit: query.limit,
     });
 
-    return reply.status(200).send(result);
+    // WHY: Đảm bảo format response nhất quán với status, message, api_version, provider
+    const formattedResponse = formatSuccessResponse(
+      result,
+      200,
+      'Revenue analytics retrieved successfully'
+    );
+
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Failed to get revenue', {
       error: error instanceof Error ? error.message : String(error),
@@ -198,19 +231,23 @@ export async function getRevenueHandler(
     });
 
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Invalid query parameters',
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Invalid query parameters',
+          400,
+          error.errors
+        )
+      );
     }
 
-    return reply.status(500).send({
-      error: {
-        message: 'Failed to get revenue',
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        'Failed to get revenue',
+        500
+      )
+    );
   }
 }
 
@@ -232,7 +269,14 @@ export async function getAIUsageHandler(
       tenantId: query.tenantId,
     });
 
-    return reply.status(200).send(result);
+    // WHY: Đảm bảo format response nhất quán với status, message, api_version, provider
+    const formattedResponse = formatSuccessResponse(
+      result,
+      200,
+      'AI usage analytics retrieved successfully'
+    );
+
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Failed to get AI usage', {
       error: error instanceof Error ? error.message : String(error),
@@ -241,19 +285,23 @@ export async function getAIUsageHandler(
     });
 
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Invalid query parameters',
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Invalid query parameters',
+          400,
+          error.errors
+        )
+      );
     }
 
-    return reply.status(500).send({
-      error: {
-        message: 'Failed to get AI usage',
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        'Failed to get AI usage',
+        500
+      )
+    );
   }
 }
 
@@ -274,7 +322,14 @@ export async function getPlatformsHandler(
       metric: query.metric,
     });
 
-    return reply.status(200).send(result);
+    // WHY: Đảm bảo format response nhất quán với status, message, api_version, provider
+    const formattedResponse = formatSuccessResponse(
+      result,
+      200,
+      'Platform distribution retrieved successfully'
+    );
+
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Failed to get platforms', {
       error: error instanceof Error ? error.message : String(error),
@@ -283,19 +338,23 @@ export async function getPlatformsHandler(
     });
 
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Invalid query parameters',
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Invalid query parameters',
+          400,
+          error.errors
+        )
+      );
     }
 
-    return reply.status(500).send({
-      error: {
-        message: 'Failed to get platforms',
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        'Failed to get platforms',
+        500
+      )
+    );
   }
 }
 
@@ -318,7 +377,14 @@ export async function getTopHandler(
       limit: query.limit,
     });
 
-    return reply.status(200).send(result);
+    // WHY: Đảm bảo format response nhất quán với status, message, api_version, provider
+    const formattedResponse = formatSuccessResponse(
+      result,
+      200,
+      'Top lists retrieved successfully'
+    );
+
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Failed to get top', {
       error: error instanceof Error ? error.message : String(error),
@@ -327,19 +393,23 @@ export async function getTopHandler(
     });
 
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Invalid query parameters',
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Invalid query parameters',
+          400,
+          error.errors
+        )
+      );
     }
 
-    return reply.status(500).send({
-      error: {
-        message: 'Failed to get top',
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        'Failed to get top',
+        500
+      )
+    );
   }
 }
 
@@ -360,7 +430,14 @@ export async function getHealthHandler(
       interval: query.interval,
     });
 
-    return reply.status(200).send(result);
+    // WHY: Đảm bảo format response nhất quán với status, message, api_version, provider
+    const formattedResponse = formatSuccessResponse(
+      result,
+      200,
+      'System health metrics retrieved successfully'
+    );
+
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Failed to get health', {
       error: error instanceof Error ? error.message : String(error),
@@ -369,19 +446,23 @@ export async function getHealthHandler(
     });
 
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Invalid query parameters',
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Invalid query parameters',
+          400,
+          error.errors
+        )
+      );
     }
 
-    return reply.status(500).send({
-      error: {
-        message: 'Failed to get health',
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        'Failed to get health',
+        500
+      )
+    );
   }
 }
 

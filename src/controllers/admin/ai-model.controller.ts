@@ -12,6 +12,7 @@ import { systemConfigService } from '../../services/system-config/system-config.
 import { logger } from '../../infrastructure/logger';
 import type { AuthenticatedRequest } from '../../types/auth';
 import { AI_CONFIG_KEYS, type AIModelConfig } from '../../types/system-config';
+import { formatSuccessResponse, formatErrorResponse } from '../../utils/response-format';
 
 /**
  * Model validation schema
@@ -47,24 +48,32 @@ export async function listAIModelsHandler(
     const config = await systemConfigService.getConfig('ai', AI_CONFIG_KEYS.AI_MODELS_LIST);
     
     if (!config || !Array.isArray(config.value)) {
-      return reply.status(200).send({
-        data: [],
-      });
+      const formattedResponse = formatSuccessResponse(
+        [],
+        200,
+        'AI models retrieved successfully'
+      );
+      return reply.status(200).send(formattedResponse);
     }
     
-    return reply.status(200).send({
-      data: config.value as AIModelConfig[],
-    });
+    const formattedResponse = formatSuccessResponse(
+      config.value as AIModelConfig[],
+      200,
+      'AI models retrieved successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Failed to list AI models', {
       error: error instanceof Error ? error.message : String(error),
     });
     
-    return reply.status(500).send({
-      error: {
-        message: 'Failed to list AI models',
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        'Failed to list AI models',
+        500
+      )
+    );
   }
 }
 
@@ -86,37 +95,46 @@ export async function getAIModelHandler(
     const config = await systemConfigService.getConfig('ai', AI_CONFIG_KEYS.AI_MODELS_LIST);
     
     if (!config || !Array.isArray(config.value)) {
-      return reply.status(404).send({
-        error: {
-          message: 'Model not found',
-        },
-      });
+      return reply.status(404).send(
+        formatErrorResponse(
+          'NOT_FOUND_ERROR',
+          'Model not found',
+          404
+        )
+      );
     }
     
     const models = config.value as AIModelConfig[];
     const model = models.find((m) => m.name === name);
     
     if (!model) {
-      return reply.status(404).send({
-        error: {
-          message: 'Model not found',
-        },
-      });
+      return reply.status(404).send(
+        formatErrorResponse(
+          'NOT_FOUND_ERROR',
+          'Model not found',
+          404
+        )
+      );
     }
     
-    return reply.status(200).send({
-      data: model,
-    });
+    const formattedResponse = formatSuccessResponse(
+      model,
+      200,
+      'AI model retrieved successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Failed to get AI model', {
       error: error instanceof Error ? error.message : String(error),
     });
     
-    return reply.status(500).send({
-      error: {
-        message: 'Failed to get AI model',
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        'Failed to get AI model',
+        500
+      )
+    );
   }
 }
 
@@ -134,11 +152,13 @@ export async function createAIModelHandler(
     const userId = authRequest.user?.userId;
     
     if (!userId) {
-      return reply.status(401).send({
-        error: {
-          message: 'Unauthorized',
-        },
-      });
+      return reply.status(401).send(
+        formatErrorResponse(
+          'AUTH_ERROR',
+          'Unauthorized',
+          401
+        )
+      );
     }
     
     // Get current models
@@ -149,11 +169,13 @@ export async function createAIModelHandler(
     
     // Check if model already exists
     if (models.some((m) => m.name === validated.name)) {
-      return reply.status(409).send({
-        error: {
-          message: 'Model already exists',
-        },
-      });
+      return reply.status(409).send(
+        formatErrorResponse(
+          'CONFLICT_ERROR',
+          'Model already exists',
+          409
+        )
+      );
     }
     
     // Add new model
@@ -167,28 +189,35 @@ export async function createAIModelHandler(
       userId
     );
     
-    return reply.status(201).send({
-      data: validated,
-    });
+    const formattedResponse = formatSuccessResponse(
+      validated,
+      201,
+      'AI model created successfully'
+    );
+    return reply.status(201).send(formattedResponse);
   } catch (error) {
     logger.error('Failed to create AI model', {
       error: error instanceof Error ? error.message : String(error),
     });
     
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Invalid model data',
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Invalid model data',
+          400,
+          error.errors
+        )
+      );
     }
     
-    return reply.status(500).send({
-      error: {
-        message: 'Failed to create AI model',
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        'Failed to create AI model',
+        500
+      )
+    );
   }
 }
 
@@ -212,11 +241,13 @@ export async function updateAIModelHandler(
     const userId = authRequest.user?.userId;
     
     if (!userId) {
-      return reply.status(401).send({
-        error: {
-          message: 'Unauthorized',
-        },
-      });
+      return reply.status(401).send(
+        formatErrorResponse(
+          'AUTH_ERROR',
+          'Unauthorized',
+          401
+        )
+      );
     }
     
     // Get current models
@@ -262,28 +293,35 @@ export async function updateAIModelHandler(
       userId
     );
     
-    return reply.status(200).send({
-      data: validated,
-    });
+    const formattedResponse = formatSuccessResponse(
+      validated,
+      200,
+      'AI model updated successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Failed to update AI model', {
       error: error instanceof Error ? error.message : String(error),
     });
     
     if (error instanceof z.ZodError) {
-      return reply.status(400).send({
-        error: {
-          message: 'Invalid model data',
-          details: error.errors,
-        },
-      });
+      return reply.status(400).send(
+        formatErrorResponse(
+          'VALIDATION_ERROR',
+          'Invalid model data',
+          400,
+          error.errors
+        )
+      );
     }
     
-    return reply.status(500).send({
-      error: {
-        message: 'Failed to update AI model',
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        'Failed to update AI model',
+        500
+      )
+    );
   }
 }
 
@@ -301,33 +339,39 @@ export async function deleteAIModelHandler(
     const userId = authRequest.user?.userId;
     
     if (!userId) {
-      return reply.status(401).send({
-        error: {
-          message: 'Unauthorized',
-        },
-      });
+      return reply.status(401).send(
+        formatErrorResponse(
+          'AUTH_ERROR',
+          'Unauthorized',
+          401
+        )
+      );
     }
     
     // Get current models
     const config = await systemConfigService.getConfig('ai', AI_CONFIG_KEYS.AI_MODELS_LIST);
     
     if (!config || !Array.isArray(config.value)) {
-      return reply.status(404).send({
-        error: {
-          message: 'Models list not found',
-        },
-      });
+      return reply.status(404).send(
+        formatErrorResponse(
+          'NOT_FOUND_ERROR',
+          'Models list not found',
+          404
+        )
+      );
     }
     
     const models: AIModelConfig[] = config.value as AIModelConfig[];
     const modelIndex = models.findIndex((m) => m.name === name);
     
     if (modelIndex === -1) {
-      return reply.status(404).send({
-        error: {
-          message: 'Model not found',
-        },
-      });
+      return reply.status(404).send(
+        formatErrorResponse(
+          'NOT_FOUND_ERROR',
+          'Model not found',
+          404
+        )
+      );
     }
     
     // Remove model
@@ -341,19 +385,24 @@ export async function deleteAIModelHandler(
       userId
     );
     
-    return reply.status(200).send({
-      message: 'Model deleted successfully',
-    });
+    const formattedResponse = formatSuccessResponse(
+      null,
+      200,
+      'Model deleted successfully'
+    );
+    return reply.status(200).send(formattedResponse);
   } catch (error) {
     logger.error('Failed to delete AI model', {
       error: error instanceof Error ? error.message : String(error),
     });
     
-    return reply.status(500).send({
-      error: {
-        message: 'Failed to delete AI model',
-      },
-    });
+    return reply.status(500).send(
+      formatErrorResponse(
+        'INTERNAL_ERROR',
+        'Failed to delete AI model',
+        500
+      )
+    );
   }
 }
 
